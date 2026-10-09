@@ -1,21 +1,22 @@
 ## TODO — `llm-as-bias-optimizer`
 
-- [ ] **0. Bootstrap repository**
-  - [ ] Create repo `llm-as-bias-optimizer`
-  - [ ] Use Python 3.14
-  - [ ] Create `pyproject.toml`
-  - [ ] Add dependencies: `numpy`, `scipy`, `scikit-learn`, `scikit-image`, `networkx`, `pydantic`, `pytest`
-  - [ ] Create initial structure:
+- [x] **0. Bootstrap repository**
+  - [x] Create repo `llm-as-bias-optimizer`
+  - [x] Use Python 3.14
+  - [x] Create `pyproject.toml`
+  - [x] Add dependencies: `numpy`, `scipy`, `scikit-learn`, `scikit-image`, `networkx`, `pydantic`, `pytest`
+  - [x] Create initial structure:
     ```text
     src/bias_optimizer/
-        bias.py
-        operators.py
-        compiler.py
-        evaluator.py
-        llm.py
-        search.py
-        dataset.py
-    tests/
+        domain/{bias,evaluation,search}.py
+        features/base.py
+        compiler/bias_compiler.py
+        ml/{learner,evaluator}.py
+        llm/{client,proposer,prompts}.py
+        search/{controller,archive}.py
+        data/mnist.py
+        cache/feature_cache.py
+    tests/{unit,integration}/
     experiments/
     results/
     cache/
@@ -328,4 +329,3 @@
     \[
     \boxed{\text{LLM-guided inductive-bias discovery}}
     \]
-    
