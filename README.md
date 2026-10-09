@@ -2,8 +2,9 @@
 
 An experiment in discovering useful image representations through LLM-proposed
 hypotheses and deterministic local evaluation. The classifier and evaluator stay
-under local control; the LLM proposes `BiasSpec` values and never executes code
-or assigns fitness.
+under local control. The frozen V1 experiment selects from named `BiasSpec`
+operators; the new V2 path proposes typed representation programs. Neither path
+executes generated code or gives the LLM access to fitness assignment.
 
 ## Development setup
 
@@ -39,14 +40,35 @@ feature-cache, and PNG files are written under `results/` and `cache/`; Git
 ignores these local artifacts. The final analysis is in
 [`reports/FINAL_REPORT.md`](reports/FINAL_REPORT.md).
 
+## V2 typed program search
+
+V2 adds a typed expression DSL, static validation, a raw-pixel-free discovery
+track, and a MAP-Elites archive. It keeps the V1 run as a separate baseline and
+uses the same fixed learner and train/validation split.
+
+```sh
+export OLLAMA_MODEL=qwen3.5:35b-mlx
+python experiments/search_programs.py --track discovery
+python experiments/search_programs.py --track augmentation
+```
+
+The defaults evaluate 20 deterministic seed programs, then request 18 proposals
+for each of 10 generations. Discovery rejects raw pixels and caps the feature
+width at 128; augmentation allows raw pixels and uses a 1,024-feature cap. Each
+track has its own candidate and LLM-response JSONL archives. See
+[`PLAN.md`](PLAN.md) and [`ARCHITECTURE.md`](ARCHITECTURE.md) for the V2 scope
+and deferred transfer and counterfactual stages.
+
 ## Project layout
 
 - `src/bias_optimizer/domain/` — immutable experiment and search data models.
+- `src/bias_optimizer/dsl/` — typed V2 representation AST, validator, compiler, and seed grammar.
+- `src/bias_optimizer/novelty/` — structural novelty descriptors and MAP-Elites archive.
 - `src/bias_optimizer/features/` — approved feature operators and pipelines.
 - `src/bias_optimizer/compiler/` — compile declarative biases into pipelines.
 - `src/bias_optimizer/ml/` — fixed learner and deterministic evaluator.
 - `src/bias_optimizer/llm/` — provider-neutral proposal boundary.
-- `src/bias_optimizer/search/` — search controller and JSONL archive.
+- `src/bias_optimizer/search/` — V1 controller and V2 program-search engine.
 - `src/bias_optimizer/data/` — reproducible MNIST splits.
 - `src/bias_optimizer/cache/` — feature cache interface.
 - `experiments/` — baseline, search, finalist, evaluation, and plot entry points.

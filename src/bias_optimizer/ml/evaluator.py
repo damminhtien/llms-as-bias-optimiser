@@ -17,6 +17,9 @@ from bias_optimizer.data.mnist import (
 )
 from bias_optimizer.domain.bias import BiasSpec, bias_spec_hash
 from bias_optimizer.domain.evaluation import Evaluation, ModelEvaluation
+from bias_optimizer.domain.program import ProgramBiasSpec, program_bias_hash
+from bias_optimizer.dsl.compiler import ProgramCompiler
+from bias_optimizer.features.base import CompiledRepresentation
 from bias_optimizer.features.pipeline import BatchFeatureExtractor
 from bias_optimizer.ml.learner import Learner, LearnerConfig
 
@@ -53,8 +56,27 @@ class Evaluator:
         if not isinstance(bias, BiasSpec):
             raise TypeError("Evaluator.evaluate requires a BiasSpec")
         pipeline = self._compiler.compile(bias)
+        return self.evaluate_pipeline(
+            pipeline,
+            cache_key=bias_spec_hash(bias),
+            cache_namespace="mnist_v1",
+        )
+
+    def evaluate_pipeline(
+        self,
+        pipeline: CompiledRepresentation,
+        *,
+        cache_key: str,
+        cache_namespace: str,
+    ) -> Evaluation:
+        """Evaluate any fixed-width compiled representation on search splits only."""
+        if not callable(getattr(pipeline, "transform", None)):
+            raise TypeError("pipeline must implement transform()")
+        if type(getattr(pipeline, "feature_dim", None)) is not int:
+            raise TypeError("pipeline must declare an integer feature_dim")
+        if not cache_key or not cache_namespace:
+            raise ValueError("cache_key and cache_namespace must be non-empty")
         data = self._get_search_data()
-        candidate_hash = bias_spec_hash(bias)
         train_sets = {
             size: data.sample_training_data(size, seed=self._learner_config.seed)
             for size in _TRAIN_SIZES
@@ -64,9 +86,9 @@ class Evaluator:
         validation_features = self._feature_extractor.transform(
             pipeline,
             data.validation_images,
-            bias_hash=candidate_hash,
+            bias_hash=cache_key,
             dataset_key=(
-                f"mnist_v1/search_validation/split_{data.seed}/"
+                f"{cache_namespace}/search_validation/split_{data.seed}/"
                 f"n_{len(data.validation_labels)}"
             ),
         )
@@ -75,9 +97,9 @@ class Evaluator:
             train_features[size] = self._feature_extractor.transform(
                 pipeline,
                 images,
-                bias_hash=candidate_hash,
+                bias_hash=cache_key,
                 dataset_key=(
-                    f"mnist_v1/search_train/split_{data.seed}/"
+                    f"{cache_namespace}/search_train/split_{data.seed}/"
                     f"sample_{self._learner_config.seed}/n_{size}"
                 ),
             )
@@ -146,3 +168,28 @@ class Evaluator:
         if self._search_data is None:
             self._search_data = load_mnist_search_data(self._data_config)
         return self._search_data
+
+
+class ProgramEvaluator:
+    """Evaluate typed DSL programs with the existing frozen learner protocol."""
+
+    def __init__(
+        self,
+        evaluator: Evaluator | None = None,
+        *,
+        compiler: ProgramCompiler | None = None,
+    ) -> None:
+        self._evaluator = evaluator if evaluator is not None else Evaluator()
+        self._compiler = compiler if compiler is not None else ProgramCompiler()
+
+    def evaluate(self, bias: ProgramBiasSpec) -> Evaluation:
+        if not isinstance(bias, ProgramBiasSpec):
+            raise TypeError("ProgramEvaluator.evaluate requires a ProgramBiasSpec")
+        pipeline = self._compiler.compile(bias.program)
+        return self._evaluator.evaluate_pipeline(
+            pipeline,
+            cache_key=program_bias_hash(bias),
+            cache_namespace=(
+                f"mnist_v2_{self._compiler.constraints.track.value}_program"
+            ),
+        )

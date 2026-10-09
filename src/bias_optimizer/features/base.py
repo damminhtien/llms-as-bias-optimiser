@@ -20,3 +20,12 @@ class FeatureOperator(Protocol):
 
     def transform(self, image: Image) -> FeatureVector:
         """Return features for a single image."""
+
+
+class CompiledRepresentation(Protocol):
+    """One compiled representation with a fixed dimension and image transform."""
+
+    @property
+    def feature_dim(self) -> int: ...
+
+    def transform(self, image: Image) -> FeatureVector: ...

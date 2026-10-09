@@ -1,3 +1,96 @@
+# PLAN — V2 Representation Program Synthesis
+
+## Research direction
+
+Move the project from selecting and combining a fixed menu of seven feature
+operators to discovering typed representation programs:
+
+\[
+\text{operator selection}
+\rightarrow
+\text{representation program synthesis}
+\rightarrow
+\text{inductive-bias discovery}
+\]
+
+The V1 MNIST experiment is frozen as the comparison baseline. Its `OperatorSpec`,
+seven-operator allow-list, evaluator protocol, archived results, and final report
+remain available on the V1 path. V2 adds a separate typed program path so the
+baseline can still be reproduced and compared without mixing its search history.
+
+## V2 scope and status
+
+- [x] Replace V2 candidate representations with immutable typed `Expr` trees.
+- [x] Add static type, primitive-parameter, AST-depth, node-count, and feature-dimension validation.
+- [x] Compile only allow-listed DSL nodes; never execute generated Python.
+- [x] Add raw-pixel augmentation and a separate discovery track that rejects `flatten_pixels` and caps features at 128 by default.
+- [x] Add deterministic seed-program generation, LLM program proposals, bounded repair, and an independent evaluator/archive path.
+- [x] Add structural AST novelty and a MAP-Elites archive indexed by primitive family and complexity.
+- [x] Persist V2 candidates and raw proposal exchanges in separate JSONL files.
+- [x] Add `experiments/search_programs.py` as the V2 entry point.
+- [ ] Run the planned 20-seed + 10-generation search on both tracks and report results; this is an experiment, not evidence already obtained by the implementation work.
+- [ ] After the core search is characterized, add transfer evaluation, counterfactual interventions, and invariance-program search.
+- [ ] Add sub-expression caching across candidates after profiling the first V2 run.
+
+## V2 search contract
+
+Each proposal contains:
+
+```text
+name
+hypothesis
+mechanism
+program: typed expression tree
+prediction
+falsification
+```
+
+The DSL starts with atoms such as image thresholding, skeletonization, graph and
+path construction, sequence statistics, normalization, spatial splits, vector
+composition, ratios, and counts. An LLM can compose these atoms into new
+representations. Candidate validation is static and bounded before feature
+extraction.
+
+The two search tracks are isolated:
+
+| Track | Pixel primitive | Default dimension cap | Purpose |
+| --- | --- | ---: | --- |
+| Augmentation | Allowed | 1,024 | Compare structural additions to raw pixels |
+| Discovery | Rejected anywhere in the AST | 128 | Search compact structural representations |
+
+Programs have operation depth at most 6 and at most 127 AST nodes by default.
+The image input leaf is depth zero. Discovery programs are scored with the
+existing fixed learner on validation accuracy at 500 and 5,000 examples, with
+the existing feature-size and runtime penalties. No test data is available to
+the search engine.
+
+The archive keeps the best candidate per `(primary primitive family, complexity
+bin)` cell. The deterministic primary-family descriptor uses AST primitive
+families; multi-family programs enter the `hybrid` niche. Tree novelty compares
+program structure and parameters, not explanations or LLM embeddings.
+
+## V2 MVP run
+
+```sh
+export OLLAMA_MODEL=qwen3.5:35b-mlx
+python experiments/search_programs.py --track discovery \
+  --generations 10 --candidates-per-generation 18 --seed-count 20
+python experiments/search_programs.py --track augmentation \
+  --generations 10 --candidates-per-generation 18 --seed-count 20
+```
+
+Each track writes an independent candidate archive and LLM-response archive.
+The search is resumable from its JSONL candidate archive. The experiment should
+be reported by track and niche; do not pool the two tracks into one leaderboard.
+
+## V1 baseline plan (frozen historical record)
+
+The completed V1 checklist below records the original operator-selection
+experiment and is retained for reproducibility. It does not describe the V2
+program-synthesis search.
+
+---
+
 ## TODO — `llm-as-bias-optimizer`
 
 - [x] **0. Bootstrap repository**
