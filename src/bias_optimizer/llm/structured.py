@@ -85,6 +85,9 @@ class StructuredBiasClient:
             request_prompt = prompt if attempt == 1 else self._retry_prompt(prompt)
             raw_response = self.client.generate(request_prompt)
             last_raw_response = raw_response
+            usage = getattr(self.client, "last_usage", None)
+            prompt_tokens = getattr(usage, "prompt_tokens", None)
+            response_tokens = getattr(usage, "response_tokens", None)
             try:
                 proposals = parse_bias_response(
                     raw_response,
@@ -102,6 +105,8 @@ class StructuredBiasClient:
                     attempt=attempt,
                     accepted=False,
                     error=str(exc)[:500],
+                    prompt_tokens=prompt_tokens,
+                    response_tokens=response_tokens,
                 )
                 records.append(record)
                 self.archive.record(record)
@@ -118,6 +123,8 @@ class StructuredBiasClient:
                 model=model,
                 attempt=attempt,
                 accepted=True,
+                prompt_tokens=prompt_tokens,
+                response_tokens=response_tokens,
             )
             records.append(record)
             self.archive.record(record)

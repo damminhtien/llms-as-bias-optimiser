@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from math import isfinite
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -19,12 +19,26 @@ class OllamaClientError(RuntimeError):
 
 
 @dataclass(frozen=True, slots=True)
+class LLMTokenUsage:
+    """Ollama-reported input and output token counts for one request."""
+
+    prompt_tokens: int | None
+    response_tokens: int | None
+
+
+@dataclass(frozen=True, slots=True)
 class OllamaLLMClient:
     """Generate JSON responses through the local Ollama chat endpoint."""
 
     base_url: str = DEFAULT_OLLAMA_BASE_URL
     model: str = DEFAULT_OLLAMA_MODEL
     timeout_seconds: float = 120.0
+    _last_usage: LLMTokenUsage | None = field(
+        default=None,
+        init=False,
+        repr=False,
+        compare=False,
+    )
 
     def __post_init__(self) -> None:
         if not isinstance(self.base_url, str):
@@ -57,6 +71,11 @@ class OllamaLLMClient:
             base_url=os.environ.get("OLLAMA_BASE_URL", DEFAULT_OLLAMA_BASE_URL),
             model=os.environ.get("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL),
         )
+
+    @property
+    def last_usage(self) -> LLMTokenUsage | None:
+        """Return token counts from the most recent successful response."""
+        return self._last_usage
 
     def generate(self, prompt: str) -> str:
         if not isinstance(prompt, str) or not prompt.strip():
@@ -92,8 +111,23 @@ class OllamaLLMClient:
             result = json.loads(raw_response)
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
             raise OllamaClientError("Ollama returned invalid JSON") from exc
+        object.__setattr__(
+            self,
+            "_last_usage",
+            LLMTokenUsage(
+                prompt_tokens=_token_count(result, "prompt_eval_count"),
+                response_tokens=_token_count(result, "eval_count"),
+            ),
+        )
         message = result.get("message") if isinstance(result, dict) else None
         content = message.get("content") if isinstance(message, dict) else None
         if not isinstance(content, str) or not content.strip():
             raise OllamaClientError("Ollama response is missing message.content")
         return content
+
+
+def _token_count(value: object, field_name: str) -> int | None:
+    if not isinstance(value, dict):
+        return None
+    count = value.get(field_name)
+    return count if type(count) is int and count >= 0 else None

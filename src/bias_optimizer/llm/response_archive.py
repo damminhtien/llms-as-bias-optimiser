@@ -18,6 +18,20 @@ class LLMResponseRecord:
     attempt: int
     accepted: bool
     error: str | None = None
+    prompt_tokens: int | None = None
+    response_tokens: int | None = None
+
+    def __post_init__(self) -> None:
+        for field_name in ("prompt_tokens", "response_tokens"):
+            count = getattr(self, field_name)
+            if count is not None and (type(count) is not int or count < 0):
+                raise ValueError(f"{field_name} must be a non-negative integer")
+
+    @property
+    def total_tokens(self) -> int | None:
+        if self.prompt_tokens is None or self.response_tokens is None:
+            return None
+        return self.prompt_tokens + self.response_tokens
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -27,6 +41,9 @@ class LLMResponseRecord:
             "attempt": self.attempt,
             "accepted": self.accepted,
             "error": self.error,
+            "prompt_tokens": self.prompt_tokens,
+            "response_tokens": self.response_tokens,
+            "total_tokens": self.total_tokens,
         }
 
 

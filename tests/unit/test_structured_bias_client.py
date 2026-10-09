@@ -7,6 +7,7 @@ import pytest
 from bias_optimizer.domain.bias import BiasSpec, OperatorSpec
 from bias_optimizer.llm import (
     JsonlResponseArchive,
+    LLMTokenUsage,
     MockLLMClient,
     StructuredBiasClient,
     StructuredOutputError,
@@ -100,6 +101,28 @@ def test_structured_client_retries_when_candidate_count_is_wrong(tmp_path) -> No
         structured_client.generate("Propose two biases.", expected_count=2)
 
     assert len(mock.prompts) == 2
+
+
+def test_structured_client_archives_provider_token_usage(tmp_path) -> None:
+    class UsageClient:
+        model = "qwen3.5:35b-mlx"
+        last_usage = None
+
+        def generate(self, prompt: str) -> str:
+            self.last_usage = LLMTokenUsage(prompt_tokens=31, response_tokens=12)
+            return _response()
+
+    archive = JsonlResponseArchive(tmp_path / "responses.jsonl")
+    result = StructuredBiasClient(UsageClient(), archive=archive).generate(
+        "Propose one bias.", expected_count=1
+    )
+
+    record = result.records[0]
+    assert record.prompt_tokens == 31
+    assert record.response_tokens == 12
+    assert record.total_tokens == 43
+    saved = json.loads(archive.path.read_text(encoding="utf-8"))
+    assert saved["total_tokens"] == 43
 
 
 def test_unknown_operator_is_rejected_without_executing_generated_code(

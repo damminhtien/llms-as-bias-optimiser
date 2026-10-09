@@ -269,17 +269,17 @@
   - [x] Return ablation evidence to LLM
   - [x] Promote an ablated representation when removing its operator improves accuracy at 500 samples; the smoke run found no unsupported operators among the seed elites
 
-- [ ] **20. Run the first serious experiment**
-  - [ ] 10 generations
-  - [ ] Approximately 5–8 new candidates/generation
-  - [ ] Target:
+- [x] **20. Run the first serious experiment**
+  - [x] 10 generations
+  - [x] Approximately 5–8 new candidates/generation; 62 candidate records were archived after duplicate removal
+  - [x] Target 60–100 candidates
     \[
     60\text{–}100\text{ candidates}
     \]
-  - [ ] Search using validation data only
-  - [ ] Track total LLM tokens
-  - [ ] Track CPU evaluation time
-  - [ ] Track total search wall-clock time
+  - [x] Search using validation data only
+  - [x] Track total LLM tokens: 88,414
+  - [x] Track CPU evaluation time: 119.5 seconds
+  - [x] Track total search wall-clock time: 545.7 seconds
 
 - [ ] **21. Select finalists**
   - [ ] Keep top 5 by low-data accuracy

@@ -29,7 +29,10 @@ def test_ollama_client_defaults_to_local_qwen_and_json_mode(monkeypatch) -> None
         captured["url"] = request.full_url
         captured["timeout"] = timeout
         captured["payload"] = json.loads(request.data)
-        return BytesIO(b'{"message":{"content":"{\\"ok\\":true}"}}')
+        return BytesIO(
+            b'{"message":{"content":"{\\"ok\\":true}"},'
+            b'"prompt_eval_count":23,"eval_count":6}'
+        )
 
     monkeypatch.setattr("bias_optimizer.llm.ollama_client.urlopen", fake_urlopen)
     client = OllamaLLMClient()
@@ -42,6 +45,8 @@ def test_ollama_client_defaults_to_local_qwen_and_json_mode(monkeypatch) -> None
     assert captured["payload"]["stream"] is False
     assert captured["payload"]["think"] is False
     assert captured["payload"]["options"]["temperature"] == 0
+    assert client.last_usage.prompt_tokens == 23
+    assert client.last_usage.response_tokens == 6
 
 
 def test_ollama_client_reads_local_environment_overrides(monkeypatch) -> None:
