@@ -45,12 +45,12 @@
     - inference time
   - [x] Verify same features + same seed ⇒ same result
 
-- [ ] **3. Implement baseline representations**
-  - [ ] `RawPixelsOperator`
-  - [ ] Simple downsampled-pixel baseline
-  - [ ] HOG / gradient baseline
-  - [ ] Record baseline accuracy at \(n=500\) and \(n=5000\)
-  - [ ] Save baseline results before introducing the LLM
+- [x] **3. Implement baseline representations**
+  - [x] `RawPixelsOperator`
+  - [x] Simple downsampled-pixel baseline
+  - [x] HOG / gradient baseline
+  - [x] Record baseline accuracy at \(n=500\) and \(n=5000\)
+  - [x] Save baseline results before introducing the LLM
 
 - [ ] **4. Implement the first structural operators**
   - [ ] Skeletonization utility
