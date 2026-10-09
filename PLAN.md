@@ -315,14 +315,15 @@
   - [x] Ablation contribution plot
   - [x] Save all six PNGs under `results/figures/`; generation validates the frozen archive checksum
 
-- [ ] **24. Answer the research question**
-  - [ ] Did LLM-generated biases beat raw pixels in low-data regime?
-  - [ ] Did they beat human-designed stroke-flow bias?
-  - [ ] Did the LLM revise incorrect hypotheses based on evidence?
-  - [ ] Which discovered assumptions survived ablation?
-  - [ ] Did explicit stroke direction help?
-  - [ ] Was curvature more useful than inferred pen order?
-  - [ ] Did search discover simpler representations rather than merely larger ones?
+- [x] **24. Answer the research question**
+  - [x] Best Qwen representation beat raw pixels by 1.79 percentage points at 500 examples; HOG remained stronger by 7.14 points
+  - [x] Best Qwen representation beat the human stroke-flow seed by 24.30 points at 500 examples
+  - [x] Summarize mixed failure-feedback results: 53 of 95 targeted confusion counts improved
+  - [x] All 20 archived operator-removal ablations reduced validation accuracy; report contribution examples
+  - [x] Explicit stroke direction helped when combined with raw pixels; removing it cost 2.45 validation points for the best candidate
+  - [x] State that pen order was not inferred, so curvature-versus-pen-order was not tested
+  - [x] The best bias was only 8 features larger than raw pixels; smaller structural-only candidates performed poorly
+  - [x] Record full findings, limits, protocol, and reproducibility in `reports/FINAL_REPORT.md`
 
 - [ ] **25. Stop condition**
   - [ ] Stop after ~100 candidates unless new generations still improve materially
