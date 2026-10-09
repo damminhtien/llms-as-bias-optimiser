@@ -52,17 +52,17 @@
   - [x] Record baseline accuracy at \(n=500\) and \(n=5000\)
   - [x] Save baseline results before introducing the LLM
 
-- [ ] **4. Implement the first structural operators**
-  - [ ] Skeletonization utility
-  - [ ] `TopologyOperator`
-    - connected components
-    - holes
-    - endpoints
-    - junctions
-  - [ ] `SpatialOperator`
-    - top / middle / bottom regions
-  - [ ] `SymmetryOperator`
-  - [ ] Unit-test each operator independently
+- [x] **4. Implement the first structural operators**
+  - [x] Skeletonization utility
+  - [x] `TopologyOperator`
+    - [x] connected components
+    - [x] holes
+    - [x] endpoints
+    - [x] junctions
+  - [x] `SpatialOperator`
+    - [x] top / middle / bottom regions
+  - [x] `SymmetryOperator`
+  - [x] Unit-test each operator independently
 
 - [ ] **5. Implement handwriting-dynamics operators**
   - [ ] Convert skeleton into graph \(G=(V,E)\)
