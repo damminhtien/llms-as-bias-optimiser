@@ -122,6 +122,10 @@ def test_search_archive_persists_reloads_deduplicates_and_ranks(tmp_path) -> Non
         higher.candidate_id,
         lower.candidate_id,
     ]
+    assert [item.candidate_id for item in reloaded.top_by_accuracy(2)] == [
+        higher.candidate_id,
+        lower.candidate_id,
+    ]
 
 
 def test_search_archive_promotes_only_accuracy_improving_ablations(

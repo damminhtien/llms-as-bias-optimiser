@@ -48,7 +48,7 @@ class SearchArchive:
         if type(k) is not int or k <= 0:
             raise ValueError("k must be a positive integer")
         ranked = sorted(
-            (record for record in self._records if self._is_rankable(record)),
+            self._rankable_records(),
             key=lambda record: (
                 -record.evaluation.ranking_score,
                 -record.evaluation.accuracy_500,
@@ -58,6 +58,25 @@ class SearchArchive:
             ),
         )
         return tuple(ranked[:k])
+
+    def top_by_accuracy(self, k: int) -> tuple[SearchRecord, ...]:
+        """Rank eligible representations by validation accuracy at 500 samples."""
+        if type(k) is not int or k <= 0:
+            raise ValueError("k must be a positive integer")
+        ranked = sorted(
+            self._rankable_records(),
+            key=lambda record: (
+                -record.evaluation.accuracy_500,
+                -record.evaluation.accuracy_5000,
+                record.evaluation.feature_dim,
+                record.evaluation.runtime_ms,
+                record.candidate_id,
+            ),
+        )
+        return tuple(ranked[:k])
+
+    def _rankable_records(self) -> tuple[SearchRecord, ...]:
+        return tuple(record for record in self._records if self._is_rankable(record))
 
     def _is_rankable(self, record: SearchRecord) -> bool:
         if record.record_type == "candidate":

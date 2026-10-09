@@ -281,12 +281,13 @@
   - [x] Track CPU evaluation time: 119.5 seconds
   - [x] Track total search wall-clock time: 545.7 seconds
 
-- [ ] **21. Select finalists**
-  - [ ] Keep top 5 by low-data accuracy
-  - [ ] Include one smallest representation
-  - [ ] Include one fastest representation
-  - [ ] Include original stroke-flow hypothesis even if it loses
-  - [ ] Freeze search before touching test set
+- [x] **21. Select finalists**
+  - [x] Keep top 5 by validation accuracy at 500 training examples
+  - [x] Include one smallest representation
+  - [x] Include one fastest representation
+  - [x] Include original stroke-flow hypothesis even if it loses
+  - [x] Freeze search before touching test set; the frozen artifact records the search archive SHA-256 and `test_set_accessed: false`
+  - [x] The frozen set contains 8 unique finalists; no test data was loaded during selection
 
 - [ ] **22. Final evaluation**
   - [ ] Evaluate finalists at:
