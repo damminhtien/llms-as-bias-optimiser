@@ -170,6 +170,14 @@ cython_debug/
 # Ruff stuff:
 .ruff_cache/
 
+# Local experiment data and generated outputs
+/data/
+/cache/*
+!/cache/.gitkeep
+/results/*
+!/results/.gitkeep
+/graphify-out/
+
 # PyPI configuration file
 .pypirc
 

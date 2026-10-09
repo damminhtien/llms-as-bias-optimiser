@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-as-bias-optimizer"
+version = "0.1.0"
+description = "LLM-guided inductive-bias discovery for image classification."
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "numpy",
+    "scipy",
+    "scikit-learn",
+    "scikit-image",
+    "networkx",
+    "pydantic",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
