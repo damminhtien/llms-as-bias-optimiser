@@ -218,7 +218,7 @@
   - [x] Limit context to relevant history
 
 - [ ] **16. Implement search records**
-  - [ ] `SearchRecord`
+  - [x] `SearchRecord`
     ```text
     generation
     BiasSpec
@@ -226,8 +226,8 @@
     parent IDs
     prompt/model metadata
     ```
-  - [ ] Persist every record to JSONL
-  - [ ] Generate deterministic candidate hashes
+  - [x] Persist every record to JSONL
+  - [x] Generate deterministic candidate hashes
 
 - [ ] **17. Implement MVP `SearchEngine`**
   - [ ] Seed with five human biases
