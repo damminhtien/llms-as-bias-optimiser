@@ -6,6 +6,7 @@ from bias_optimizer.features.baselines import (
     RawPixelsOperator,
 )
 from bias_optimizer.features.curvature import CurvatureOperator
+from bias_optimizer.features.pipeline import BatchFeatureExtractor, FeaturePipeline
 from bias_optimizer.features.registry import OperatorRegistry
 from bias_optimizer.features.skeleton import skeletonize_image
 from bias_optimizer.features.skeleton_graph import (
@@ -22,9 +23,11 @@ from bias_optimizer.features.symmetry import SymmetryOperator
 from bias_optimizer.features.topology import TopologyOperator
 
 __all__ = [
+    "BatchFeatureExtractor",
     "CurvatureOperator",
     "DirectionTransitionOperator",
     "DownsampledPixelsOperator",
+    "FeaturePipeline",
     "HOGOperator",
     "OperatorRegistry",
     "RawPixelsOperator",

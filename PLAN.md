@@ -113,13 +113,13 @@
   - [x] Validate parameter bounds
   - [x] Add registry tests
 
-- [ ] **8. Implement `FeaturePipeline`**
-  - [ ] Compose several `FeatureOperator`s
-  - [ ] Concatenate output vectors
-  - [ ] Guarantee finite numeric output
-  - [ ] Expose `feature_dim`
-  - [ ] Batch-transform images
-  - [ ] Cache feature matrices by bias hash
+- [x] **8. Implement `FeaturePipeline`**
+  - [x] Compose several `FeatureOperator`s
+  - [x] Concatenate output vectors
+  - [x] Guarantee finite numeric output
+  - [x] Expose `feature_dim`
+  - [x] Batch-transform images
+  - [x] Cache feature matrices by bias hash
 
 - [ ] **9. Implement `BiasCompiler`**
   - [ ] Input:

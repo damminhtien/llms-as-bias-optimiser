@@ -15,6 +15,10 @@ from bias_optimizer.features.base import FeatureVector, Image
 class RawPixelsOperator:
     """Use all normalized grayscale pixels as the feature vector."""
 
+    @property
+    def feature_dim(self) -> int:
+        return 28 * 28
+
     def transform(self, image: Image) -> FeatureVector:
         return validated_image(image).reshape(-1).copy()
 
@@ -22,6 +26,10 @@ class RawPixelsOperator:
 @dataclass(frozen=True, slots=True)
 class DownsampledPixelsOperator:
     """Average each 2x2 pixel block to produce a 14x14 representation."""
+
+    @property
+    def feature_dim(self) -> int:
+        return 14 * 14
 
     def transform(self, image: Image) -> FeatureVector:
         array = validated_image(image)
@@ -42,6 +50,22 @@ class HOGOperator:
             raise ValueError("orientations must be positive")
         if any(size <= 0 for size in (*self.pixels_per_cell, *self.cells_per_block)):
             raise ValueError("cell and block dimensions must be positive")
+
+    @property
+    def feature_dim(self) -> int:
+        cell_rows = 28 // self.pixels_per_cell[0]
+        cell_cols = 28 // self.pixels_per_cell[1]
+        block_rows = cell_rows - self.cells_per_block[0] + 1
+        block_cols = cell_cols - self.cells_per_block[1] + 1
+        if block_rows <= 0 or block_cols <= 0:
+            raise ValueError("HOG cells_per_block exceed the image cell dimensions")
+        return (
+            block_rows
+            * block_cols
+            * self.cells_per_block[0]
+            * self.cells_per_block[1]
+            * self.orientations
+        )
 
     def transform(self, image: Image) -> FeatureVector:
         array = validated_image(image)

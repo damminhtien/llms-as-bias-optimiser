@@ -14,6 +14,10 @@ from bias_optimizer.features.base import FeatureVector, Image
 class SpatialOperator:
     """Return ink-mass fractions in top, middle, and bottom image bands."""
 
+    @property
+    def feature_dim(self) -> int:
+        return 3
+
     def transform(self, image: Image) -> FeatureVector:
         array = validated_image(image)
         total_mass = float(array.sum())

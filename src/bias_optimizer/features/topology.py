@@ -51,6 +51,10 @@ class TopologyOperator:
         if not np.isfinite(self.threshold) or not 0 <= self.threshold <= 1:
             raise ValueError("threshold must be finite and in [0, 1]")
 
+    @property
+    def feature_dim(self) -> int:
+        return 4
+
     def transform(self, image: Image) -> FeatureVector:
         binary = validated_image(image) >= self.threshold
         skeleton = skeletonize_image(image, threshold=self.threshold)

@@ -14,6 +14,10 @@ from bias_optimizer.features.base import FeatureVector, Image
 class SymmetryOperator:
     """Return left-right and top-bottom reflection similarity scores."""
 
+    @property
+    def feature_dim(self) -> int:
+        return 2
+
     def transform(self, image: Image) -> FeatureVector:
         array = validated_image(image)
         mass = float(array.sum())

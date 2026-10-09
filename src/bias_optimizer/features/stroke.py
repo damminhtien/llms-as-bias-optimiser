@@ -31,6 +31,10 @@ def _image_paths(image: Image) -> tuple[tuple[tuple[int, int], ...], ...]:
 class StrokeDirectionOperator:
     """Return an orientation-neutral histogram over eight compass directions."""
 
+    @property
+    def feature_dim(self) -> int:
+        return DIRECTION_BINS
+
     def transform(self, image: Image) -> FeatureVector:
         histogram = np.zeros(DIRECTION_BINS, dtype=np.float64)
         for angles in path_angles_for_paths(_image_paths(image)):
@@ -47,6 +51,10 @@ class StrokeDirectionOperator:
 @dataclass(frozen=True, slots=True)
 class DirectionTransitionOperator:
     """Return a normalized 8x8 histogram of consecutive path directions."""
+
+    @property
+    def feature_dim(self) -> int:
+        return DIRECTION_BINS * DIRECTION_BINS
 
     def transform(self, image: Image) -> FeatureVector:
         transitions = np.zeros((DIRECTION_BINS, DIRECTION_BINS), dtype=np.float64)

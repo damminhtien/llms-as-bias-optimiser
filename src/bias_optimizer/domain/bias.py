@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from collections.abc import Mapping
@@ -158,3 +159,10 @@ class BiasSpec:
     def from_json(cls, value: str) -> BiasSpec:
         decoded = json.loads(value)
         return cls.from_dict(decoded)
+
+
+def bias_spec_hash(spec: BiasSpec) -> str:
+    """Return the stable SHA-256 identity of a canonical bias specification."""
+    if not isinstance(spec, BiasSpec):
+        raise TypeError("bias_spec_hash requires a BiasSpec")
+    return hashlib.sha256(spec.to_json().encode("utf-8")).hexdigest()

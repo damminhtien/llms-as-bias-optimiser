@@ -20,6 +20,10 @@ from bias_optimizer.features.stroke import _image_paths
 class CurvatureOperator:
     """Return an orientation-neutral histogram of signed local turning angles."""
 
+    @property
+    def feature_dim(self) -> int:
+        return DIRECTION_BINS
+
     def transform(self, image: Image) -> FeatureVector:
         histogram = np.zeros(DIRECTION_BINS, dtype=np.float64)
         paths = _image_paths(image)
