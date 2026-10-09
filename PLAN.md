@@ -83,10 +83,10 @@
   - [x] Resolve optional trajectory inference: use orientation-neutral path features instead of assigning pen order
   - [x] Test on manually selected digits `0, 1, 6, 8, 9`
 
-- [ ] **6. Define the bias domain model**
-  - [ ] Implement `OperatorSpec`
-  - [ ] Implement `BiasSpec`
-  - [ ] Fields:
+- [x] **6. Define the bias domain model**
+  - [x] Implement `OperatorSpec`
+  - [x] Implement `BiasSpec`
+  - [x] Fields:
     ```text
     name
     hypothesis
@@ -94,9 +94,9 @@
     prediction
     falsification
     ```
-  - [ ] Make specs immutable where practical
-  - [ ] Add JSON serialization/deserialization
-  - [ ] Validate unknown operators and illegal parameters
+  - [x] Make specs immutable where practical
+  - [x] Add JSON serialization/deserialization
+  - [x] Validate identifier syntax and JSON-safe parameter values (operator allow-list and bounds are step 7)
 
 - [ ] **7. Implement operator registry**
   - [ ] Register only allowed operators:
