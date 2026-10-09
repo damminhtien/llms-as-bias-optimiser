@@ -303,16 +303,17 @@
   - [x] Compare against raw pixels and HOG
   - [x] Evaluate 8 finalists plus 2 baselines; at 500 examples, the best Qwen bias scored 86.41%, raw pixels 84.62%, and HOG 93.55% test accuracy
 
-- [ ] **23. Produce final plots**
-  - [ ] Learning curve:
+- [x] **23. Produce final plots**
+  - [x] Learning curve:
     \[
     x=\log N_{\text{train}},\quad y=\text{accuracy}
     \]
-  - [ ] Bias evolution across generations
-  - [ ] Feature dimension vs accuracy
-  - [ ] Runtime vs accuracy
-  - [ ] Confusion matrices for finalists
-  - [ ] Ablation contribution plot
+  - [x] Bias evolution across generations, using search validation results only
+  - [x] Feature dimension vs accuracy
+  - [x] Runtime vs accuracy
+  - [x] Confusion matrices for finalists, aggregated over the three 500-example seeds
+  - [x] Ablation contribution plot
+  - [x] Save all six PNGs under `results/figures/`; generation validates the frozen archive checksum
 
 - [ ] **24. Answer the research question**
   - [ ] Did LLM-generated biases beat raw pixels in low-data regime?
