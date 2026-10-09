@@ -50,8 +50,8 @@ def _labels(values: NDArray, expected_size: int) -> NDArray[np.int64]:
 class Learner:
     """Train and predict with one fixed standardization/classification pipeline."""
 
-    def __init__(self, config: LearnerConfig = LearnerConfig()) -> None:
-        self._config = config
+    def __init__(self, config: LearnerConfig | None = None) -> None:
+        self._config = config if config is not None else LearnerConfig()
         self._model: Pipeline | None = None
 
     def fit(self, train_x: NDArray, train_y: NDArray) -> None:

@@ -134,15 +134,15 @@
   - [x] Reject invalid bias specifications cleanly
   - [x] Ensure LLM never directly edits evaluator/classifier code
 
-- [ ] **10. Implement `Evaluator`**
-  - [ ] Input: `BiasSpec`
-  - [ ] Compile representation
-  - [ ] Extract/cache features
-  - [ ] Train fixed logistic regression
-  - [ ] Evaluate at \(n=500\)
-  - [ ] Evaluate at \(n=5000\)
-  - [ ] Return `Evaluation`
-  - [ ] Include:
+- [x] **10. Implement `Evaluator`**
+  - [x] Input: `BiasSpec`
+  - [x] Compile representation
+  - [x] Extract/cache features
+  - [x] Train fixed logistic regression
+  - [x] Evaluate at \(n=500\)
+  - [x] Evaluate at \(n=5000\)
+  - [x] Return `Evaluation`
+  - [x] Include:
     ```text
     accuracy_500
     accuracy_5000
@@ -151,7 +151,7 @@
     inference_runtime_ms
     confusion_matrix
     ```
-  - [ ] Define initial ranking score, e.g.
+  - [x] Define initial ranking score with \(\lambda_d=0.001\), \(\lambda_t=0.0001\), and \(t\) as total measured runtime in milliseconds:
     \[
     F=
     0.6A_{500}+0.4A_{5000}

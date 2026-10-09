@@ -195,9 +195,11 @@ def _load_openml_arrays(data_dir: Path) -> tuple[ImageArray, LabelArray]:
 
 
 def load_mnist_search_data(
-    config: MNISTDataConfig = MNISTDataConfig(),
+    config: MNISTDataConfig | None = None,
 ) -> MNISTSearchData:
     """Load the official 60k train partition and expose only train/validation."""
+    if config is None:
+        config = MNISTDataConfig()
     if config.validation_size >= _TRAIN_SIZE:
         raise ValueError("validation_size must be smaller than 60,000")
     images, labels = _load_openml_arrays(config.data_dir)
