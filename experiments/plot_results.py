@@ -237,7 +237,7 @@ def _plot_ablations(records: tuple[SearchRecord, ...], output: Path) -> None:
         parent = records_by_id.get(record.base_candidate_id)
         if parent is None:
             continue
-        delta = record.evaluation.accuracy_500 - parent.evaluation.accuracy_500
+        delta = parent.evaluation.accuracy_500 - record.evaluation.accuracy_500
         label = (
             f"G{record.generation} −{record.removed_operator} · "
             f"{record.candidate_id[:6]}"
@@ -255,8 +255,8 @@ def _plot_ablations(records: tuple[SearchRecord, ...], output: Path) -> None:
     axis.barh(positions, deltas, color=colors)
     axis.set_yticks(positions, labels=labels, fontsize=7)
     axis.axvline(0, color="black", linewidth=0.8)
-    axis.set_xlabel("Δ validation accuracy@500 (ablated − parent, percentage points)")
-    axis.set_title("Ablation contribution across searched candidates")
+    axis.set_xlabel("Δ validation accuracy@500 (parent − ablated, percentage points)")
+    axis.set_title("Retained operator contribution across searched candidates")
     axis.grid(axis="x", alpha=0.25)
     figure.tight_layout()
     figure.savefig(output / "ablation_contributions.png", dpi=180)

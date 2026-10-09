@@ -244,17 +244,13 @@
 
 - [x] **18. Add failure-driven feedback**
   - [x] Extract major confusion pairs
-  - [ ] Example:
-    ```text
-    3 ↔ 5
-    4 ↔ 9
-    ```
+  - [x] Use observed directed pairs such as 4 → 9 and 5 → 3
   - [x] Feed these back to LLM
   - [x] Ask for hypotheses specifically addressing those failures
   - [x] Track whether proposed fixes actually improve those pairs
 
 - [x] **19. Add ablation for elite candidates**
-  - [ ] For each top bias
+  - [x] For each of the top five biases, evaluate distinct one-operator removals
     \[
     B=\{b_1,\dots,b_k\}
     \]
@@ -262,7 +258,7 @@
     \[
     B\setminus\{b_i\}
     \]
-  - [ ] Compute
+  - [x] Compute and plot
     \[
     \Delta_i=A(B)-A(B\setminus\{b_i\})
     \]
