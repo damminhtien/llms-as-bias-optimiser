@@ -186,14 +186,14 @@
   - [x] Never execute LLM-generated Python
   - [x] Record raw LLM response for reproducibility
 
-- [ ] **14. Design proposer prompt**
-  - [ ] Include research objective
-  - [ ] Include allowed operators
-  - [ ] State fixed classifier constraint
-  - [ ] Include top-performing hypotheses
-  - [ ] Include confusion pairs
-  - [ ] Include ablation evidence when available
-  - [ ] Require for every proposal:
+- [x] **14. Design proposer prompt**
+  - [x] Include research objective
+  - [x] Include allowed operators
+  - [x] State fixed classifier constraint
+  - [x] Include top-performing hypotheses
+  - [x] Include confusion pairs
+  - [x] Include ablation evidence when available
+  - [x] Require for every proposal:
     ```text
     hypothesis
     representation
@@ -201,7 +201,7 @@
     prediction
     falsification condition
     ```
-  - [ ] Explicitly tell LLM:
+  - [x] Explicitly tell LLM:
     > Prefer conceptual changes over simply adding more features.
 
 - [ ] **15. Implement `LLMProposer`**
