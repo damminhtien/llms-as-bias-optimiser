@@ -178,13 +178,13 @@
   - [x] Keep provider-specific code isolated
   - [x] Add mock LLM client for tests
 
-- [ ] **13. Implement structured LLM output**
-  - [ ] Require JSON only
-  - [ ] Parse JSON → `BiasSpec`
-  - [ ] Reject malformed output
-  - [ ] Retry once on schema failure
-  - [ ] Never execute LLM-generated Python
-  - [ ] Record raw LLM response for reproducibility
+- [x] **13. Implement structured LLM output**
+  - [x] Require JSON only
+  - [x] Parse JSON → `BiasSpec`
+  - [x] Reject malformed output
+  - [x] Retry once on schema failure
+  - [x] Never execute LLM-generated Python
+  - [x] Record raw LLM response for reproducibility
 
 - [ ] **14. Design proposer prompt**
   - [ ] Include research objective
