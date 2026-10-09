@@ -60,6 +60,25 @@ def test_final_sampler_returns_full_training_partition_without_copying() -> None
     assert train_labels is final_data.train_labels
 
 
+def test_final_sampler_indices_match_sampled_training_data() -> None:
+    images, labels = _synthetic_digits()
+    final_data = MNISTFinalData(
+        train_images=images,
+        train_labels=labels,
+        test_images=images[:20],
+        test_labels=labels[:20],
+    )
+
+    indices = final_data.sample_training_indices(50, seed=23)
+    sampled_images, sampled_labels = final_data.sample_training_data(50, seed=23)
+
+    np.testing.assert_array_equal(sampled_images, final_data.train_images[indices])
+    np.testing.assert_array_equal(sampled_labels, final_data.train_labels[indices])
+    np.testing.assert_array_equal(
+        final_data.sample_training_indices(50, seed=23), indices
+    )
+
+
 @pytest.mark.parametrize("validation_size", [0, 200])
 def test_search_split_rejects_invalid_validation_size(validation_size: int) -> None:
     images, labels = _synthetic_digits()

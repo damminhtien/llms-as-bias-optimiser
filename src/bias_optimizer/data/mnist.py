@@ -139,8 +139,12 @@ class MNISTFinalData:
         """Return a reproducible subset from the full train partition."""
         if size == len(self.train_labels):
             return self.train_images, self.train_labels
-        selected = _stratified_sample_indices(self.train_labels, size, seed)
+        selected = self.sample_training_indices(size, seed)
         return self.train_images[selected], self.train_labels[selected]
+
+    def sample_training_indices(self, size: int, seed: int = 42) -> NDArray[np.int64]:
+        """Return indices for a reproducible subset of the train partition."""
+        return _stratified_sample_indices(self.train_labels, size, seed)
 
 
 def split_search_data(

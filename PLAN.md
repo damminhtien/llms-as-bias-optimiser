@@ -289,18 +289,19 @@
   - [x] Freeze search before touching test set; the frozen artifact records the search archive SHA-256 and `test_set_accessed: false`
   - [x] The frozen set contains 8 unique finalists; no test data was loaded during selection
 
-- [ ] **22. Final evaluation**
-  - [ ] Evaluate finalists at:
+- [x] **22. Final evaluation**
+  - [x] Evaluate finalists at:
     \[
     n\in\{250,500,1000,5000,60000\}
     \]
-  - [ ] Run multiple seeds
+  - [x] Run multiple seeds
     \[
     \{11,23,47\}
     \]
-  - [ ] Report mean ± standard deviation
-  - [ ] Evaluate test set exactly after candidate selection
-  - [ ] Compare against raw pixels and HOG
+  - [x] Report mean ± standard deviation
+  - [x] Evaluate the official test set only after verifying the frozen finalist and archive checksums
+  - [x] Compare against raw pixels and HOG
+  - [x] Evaluate 8 finalists plus 2 baselines; at 500 examples, the best Qwen bias scored 86.41%, raw pixels 84.62%, and HOG 93.55% test accuracy
 
 - [ ] **23. Produce final plots**
   - [ ] Learning curve:
