@@ -159,14 +159,14 @@
     -\lambda_t\log(1+t)
     \]
 
-- [ ] **11. Create initial human-designed biases**
-  - [ ] `B0 = raw_pixels`
-  - [ ] `B1 = topology`
-  - [ ] `B2 = topology + spatial`
-  - [ ] `B3 = topology + curvature`
-  - [ ] `B4 = topology + stroke_direction + curvature`
-  - [ ] Evaluate all five
-  - [ ] Confirm the whole pipeline works without any LLM
+- [x] **11. Create initial human-designed biases**
+  - [x] `B0 = raw_pixels`
+  - [x] `B1 = topology`
+  - [x] `B2 = topology + spatial`
+  - [x] `B3 = topology + curvature`
+  - [x] `B4 = topology + stroke_direction + curvature`
+  - [x] Evaluate all five
+  - [x] Confirm the whole pipeline works without any LLM
 
 - [ ] **12. Define the LLM abstraction**
   - [ ] Create `LLMClient` protocol

@@ -11,12 +11,12 @@ import numpy as np
 from numpy.typing import NDArray
 
 from bias_optimizer.data import MNISTDataConfig, load_mnist_search_data
+from bias_optimizer.features.base import FeatureOperator
 from bias_optimizer.features.baselines import (
     DownsampledPixelsOperator,
     HOGOperator,
     RawPixelsOperator,
 )
-from bias_optimizer.features.base import FeatureOperator
 from bias_optimizer.ml.evaluator import Evaluator
 from bias_optimizer.ml.learner import LearnerConfig
 
