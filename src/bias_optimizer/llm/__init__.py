@@ -5,6 +5,7 @@ from bias_optimizer.llm.ollama_client import (
     OllamaClientError,
     OllamaLLMClient,
 )
+from bias_optimizer.llm.proposer import LLMProposer, ProposedBias
 from bias_optimizer.llm.response_archive import JsonlResponseArchive, LLMResponseRecord
 from bias_optimizer.llm.structured import (
     StructuredBiasClient,
@@ -16,10 +17,12 @@ from bias_optimizer.llm.structured import (
 __all__ = [
     "JsonlResponseArchive",
     "LLMClient",
+    "LLMProposer",
     "LLMResponseRecord",
     "MockLLMClient",
     "OllamaClientError",
     "OllamaLLMClient",
+    "ProposedBias",
     "StructuredBiasClient",
     "StructuredBiasResponse",
     "StructuredOutputError",

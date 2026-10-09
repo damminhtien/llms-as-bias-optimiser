@@ -205,17 +205,17 @@
     > Prefer conceptual changes over simply adding more features.
 
 - [ ] **15. Implement `LLMProposer`**
-  - [ ] Input: search history
-  - [ ] Generate four candidate types:
+  - [x] Input: bounded search-history evidence
+  - [x] Generate four candidate types:
     ```text
     exploitation
     failure-driven
     simplification
     exploration
     ```
-  - [ ] Convert output to validated `BiasSpec`
-  - [ ] Remove duplicate biases
-  - [ ] Limit context to relevant history
+  - [x] Convert output to validated `BiasSpec`
+  - [x] Remove duplicate representations within the batch and against history
+  - [x] Limit context to relevant history
 
 - [ ] **16. Implement search records**
   - [ ] `SearchRecord`
