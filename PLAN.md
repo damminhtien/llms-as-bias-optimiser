@@ -168,15 +168,15 @@
   - [x] Evaluate all five
   - [x] Confirm the whole pipeline works without any LLM
 
-- [ ] **12. Define the LLM abstraction**
-  - [ ] Create `LLMClient` protocol
+- [x] **12. Define the LLM abstraction**
+  - [x] Create `LLMClient` protocol
     ```python
     class LLMClient(Protocol):
         def generate(self, prompt: str) -> str: ...
     ```
-  - [ ] Implement one provider first
-  - [ ] Keep provider-specific code isolated
-  - [ ] Add mock LLM client for tests
+  - [x] Implement local Ollama provider using `qwen3.5:35b-mlx`
+  - [x] Keep provider-specific code isolated
+  - [x] Add mock LLM client for tests
 
 - [ ] **13. Implement structured LLM output**
   - [ ] Require JSON only
