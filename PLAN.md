@@ -1,0 +1,331 @@
+## TODO — `llm-as-bias-optimizer`
+
+- [ ] **0. Bootstrap repository**
+  - [ ] Create repo `llm-as-bias-optimizer`
+  - [ ] Use Python 3.14
+  - [ ] Create `pyproject.toml`
+  - [ ] Add dependencies: `numpy`, `scipy`, `scikit-learn`, `scikit-image`, `networkx`, `pydantic`, `pytest`
+  - [ ] Create initial structure:
+    ```text
+    src/bias_optimizer/
+        bias.py
+        operators.py
+        compiler.py
+        evaluator.py
+        llm.py
+        search.py
+        dataset.py
+    tests/
+    experiments/
+    results/
+    cache/
+    ```
+
+- [ ] **1. Build deterministic MNIST experiment**
+  - [ ] Load MNIST
+  - [ ] Create fixed train / validation / test splits
+  - [ ] Fix random seed
+  - [ ] Add subset sampling for:
+    \[
+    n\in\{500,5000,60000\}
+    \]
+  - [ ] Ensure test set is inaccessible during search
+  - [ ] Write dataset/split reproducibility tests
+
+- [ ] **2. Implement fixed downstream learner**
+  - [ ] Use `StandardScaler`
+  - [ ] Use multinomial logistic regression
+  - [ ] Fix classifier hyperparameters
+  - [ ] Create `train_and_predict(features, labels)`
+  - [ ] Measure:
+    - accuracy
+    - confusion matrix
+    - training time
+    - inference time
+  - [ ] Verify same features + same seed ⇒ same result
+
+- [ ] **3. Implement baseline representations**
+  - [ ] `RawPixelsOperator`
+  - [ ] Simple downsampled-pixel baseline
+  - [ ] HOG / gradient baseline
+  - [ ] Record baseline accuracy at \(n=500\) and \(n=5000\)
+  - [ ] Save baseline results before introducing the LLM
+
+- [ ] **4. Implement the first structural operators**
+  - [ ] Skeletonization utility
+  - [ ] `TopologyOperator`
+    - connected components
+    - holes
+    - endpoints
+    - junctions
+  - [ ] `SpatialOperator`
+    - top / middle / bottom regions
+  - [ ] `SymmetryOperator`
+  - [ ] Unit-test each operator independently
+
+- [ ] **5. Implement handwriting-dynamics operators**
+  - [ ] Convert skeleton into graph \(G=(V,E)\)
+  - [ ] Detect endpoints and junctions
+  - [ ] Extract graph paths
+  - [ ] Implement local stroke direction
+    \[
+    \theta_t=\operatorname{atan2}(\Delta y,\Delta x)
+    \]
+  - [ ] Quantize directions into 8 bins
+  - [ ] `StrokeDirectionOperator`
+  - [ ] Implement curvature
+    \[
+    \Delta\theta_t=\theta_{t+1}-\theta_t
+    \]
+  - [ ] `CurvatureOperator`
+  - [ ] Implement direction-transition matrix
+  - [ ] Optionally infer \(K=3\) plausible trajectories rather than one
+  - [ ] Test on manually selected digits `0, 1, 6, 8, 9`
+
+- [ ] **6. Define the bias domain model**
+  - [ ] Implement `OperatorSpec`
+  - [ ] Implement `BiasSpec`
+  - [ ] Fields:
+    ```text
+    name
+    hypothesis
+    operators
+    prediction
+    falsification
+    ```
+  - [ ] Make specs immutable where practical
+  - [ ] Add JSON serialization/deserialization
+  - [ ] Validate unknown operators and illegal parameters
+
+- [ ] **7. Implement operator registry**
+  - [ ] Register only allowed operators:
+    ```text
+    raw_pixels
+    topology
+    spatial
+    symmetry
+    stroke_direction
+    curvature
+    direction_transition
+    ```
+  - [ ] Reject arbitrary code from LLM
+  - [ ] Validate parameter bounds
+  - [ ] Add registry tests
+
+- [ ] **8. Implement `FeaturePipeline`**
+  - [ ] Compose several `FeatureOperator`s
+  - [ ] Concatenate output vectors
+  - [ ] Guarantee finite numeric output
+  - [ ] Expose `feature_dim`
+  - [ ] Batch-transform images
+  - [ ] Cache feature matrices by bias hash
+
+- [ ] **9. Implement `BiasCompiler`**
+  - [ ] Input:
+    ```text
+    BiasSpec
+    ```
+  - [ ] Output:
+    ```text
+    FeaturePipeline
+    ```
+  - [ ] Compile operator specs through registry
+  - [ ] Reject invalid bias specifications cleanly
+  - [ ] Ensure LLM never directly edits evaluator/classifier code
+
+- [ ] **10. Implement `Evaluator`**
+  - [ ] Input: `BiasSpec`
+  - [ ] Compile representation
+  - [ ] Extract/cache features
+  - [ ] Train fixed logistic regression
+  - [ ] Evaluate at \(n=500\)
+  - [ ] Evaluate at \(n=5000\)
+  - [ ] Return `Evaluation`
+  - [ ] Include:
+    ```text
+    accuracy_500
+    accuracy_5000
+    feature_dim
+    feature_runtime_ms
+    inference_runtime_ms
+    confusion_matrix
+    ```
+  - [ ] Define initial ranking score, e.g.
+    \[
+    F=
+    0.6A_{500}+0.4A_{5000}
+    -\lambda_d\log(1+d)
+    -\lambda_t\log(1+t)
+    \]
+
+- [ ] **11. Create initial human-designed biases**
+  - [ ] `B0 = raw_pixels`
+  - [ ] `B1 = topology`
+  - [ ] `B2 = topology + spatial`
+  - [ ] `B3 = topology + curvature`
+  - [ ] `B4 = topology + stroke_direction + curvature`
+  - [ ] Evaluate all five
+  - [ ] Confirm the whole pipeline works without any LLM
+
+- [ ] **12. Define the LLM abstraction**
+  - [ ] Create `LLMClient` protocol
+    ```python
+    class LLMClient(Protocol):
+        def generate(self, prompt: str) -> str: ...
+    ```
+  - [ ] Implement one provider first
+  - [ ] Keep provider-specific code isolated
+  - [ ] Add mock LLM client for tests
+
+- [ ] **13. Implement structured LLM output**
+  - [ ] Require JSON only
+  - [ ] Parse JSON → `BiasSpec`
+  - [ ] Reject malformed output
+  - [ ] Retry once on schema failure
+  - [ ] Never execute LLM-generated Python
+  - [ ] Record raw LLM response for reproducibility
+
+- [ ] **14. Design proposer prompt**
+  - [ ] Include research objective
+  - [ ] Include allowed operators
+  - [ ] State fixed classifier constraint
+  - [ ] Include top-performing hypotheses
+  - [ ] Include confusion pairs
+  - [ ] Include ablation evidence when available
+  - [ ] Require for every proposal:
+    ```text
+    hypothesis
+    representation
+    expected effect
+    prediction
+    falsification condition
+    ```
+  - [ ] Explicitly tell LLM:
+    > Prefer conceptual changes over simply adding more features.
+
+- [ ] **15. Implement `LLMProposer`**
+  - [ ] Input: search history
+  - [ ] Generate four candidate types:
+    ```text
+    exploitation
+    failure-driven
+    simplification
+    exploration
+    ```
+  - [ ] Convert output to validated `BiasSpec`
+  - [ ] Remove duplicate biases
+  - [ ] Limit context to relevant history
+
+- [ ] **16. Implement search records**
+  - [ ] `SearchRecord`
+    ```text
+    generation
+    BiasSpec
+    Evaluation
+    parent IDs
+    prompt/model metadata
+    ```
+  - [ ] Persist every record to JSONL
+  - [ ] Generate deterministic candidate hashes
+
+- [ ] **17. Implement MVP `SearchEngine`**
+  - [ ] Seed with five human biases
+  - [ ] Evaluate seeds
+  - [ ] Keep top 5
+  - [ ] Ask LLM for 5 new candidates
+  - [ ] Evaluate candidates
+  - [ ] Merge + rank
+  - [ ] Repeat for 5 generations
+  - [ ] Target:
+    \[
+    30\text{–}40\text{ evaluations}
+    \]
+
+- [ ] **18. Add failure-driven feedback**
+  - [ ] Extract major confusion pairs
+  - [ ] Example:
+    ```text
+    3 ↔ 5
+    4 ↔ 9
+    ```
+  - [ ] Feed these back to LLM
+  - [ ] Ask for hypotheses specifically addressing those failures
+  - [ ] Track whether proposed fixes actually improve those pairs
+
+- [ ] **19. Add ablation for elite candidates**
+  - [ ] For each top bias
+    \[
+    B=\{b_1,\dots,b_k\}
+    \]
+  - [ ] Evaluate
+    \[
+    B\setminus\{b_i\}
+    \]
+  - [ ] Compute
+    \[
+    \Delta_i=A(B)-A(B\setminus\{b_i\})
+    \]
+  - [ ] Return ablation evidence to LLM
+  - [ ] Remove unsupported operators
+
+- [ ] **20. Run the first serious experiment**
+  - [ ] 10 generations
+  - [ ] Approximately 5–8 new candidates/generation
+  - [ ] Target:
+    \[
+    60\text{–}100\text{ candidates}
+    \]
+  - [ ] Search using validation data only
+  - [ ] Track total LLM tokens
+  - [ ] Track CPU evaluation time
+  - [ ] Track total search wall-clock time
+
+- [ ] **21. Select finalists**
+  - [ ] Keep top 5 by low-data accuracy
+  - [ ] Include one smallest representation
+  - [ ] Include one fastest representation
+  - [ ] Include original stroke-flow hypothesis even if it loses
+  - [ ] Freeze search before touching test set
+
+- [ ] **22. Final evaluation**
+  - [ ] Evaluate finalists at:
+    \[
+    n\in\{250,500,1000,5000,60000\}
+    \]
+  - [ ] Run multiple seeds
+    \[
+    \{11,23,47\}
+    \]
+  - [ ] Report mean ± standard deviation
+  - [ ] Evaluate test set exactly after candidate selection
+  - [ ] Compare against raw pixels and HOG
+
+- [ ] **23. Produce final plots**
+  - [ ] Learning curve:
+    \[
+    x=\log N_{\text{train}},\quad y=\text{accuracy}
+    \]
+  - [ ] Bias evolution across generations
+  - [ ] Feature dimension vs accuracy
+  - [ ] Runtime vs accuracy
+  - [ ] Confusion matrices for finalists
+  - [ ] Ablation contribution plot
+
+- [ ] **24. Answer the research question**
+  - [ ] Did LLM-generated biases beat raw pixels in low-data regime?
+  - [ ] Did they beat human-designed stroke-flow bias?
+  - [ ] Did the LLM revise incorrect hypotheses based on evidence?
+  - [ ] Which discovered assumptions survived ablation?
+  - [ ] Did explicit stroke direction help?
+  - [ ] Was curvature more useful than inferred pen order?
+  - [ ] Did search discover simpler representations rather than merely larger ones?
+
+- [ ] **25. Stop condition**
+  - [ ] Stop after ~100 candidates unless new generations still improve materially
+  - [ ] Stop if last 3 generations improve \(A_{500}\) by less than ~0.2%
+  - [ ] Do not expand the project into unrestricted AutoML
+  - [ ] Keep the central claim focused on:
+    \[
+    \boxed{\text{LLM-guided inductive-bias discovery}}
+    \]
+    
