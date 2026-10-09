@@ -4,7 +4,7 @@
   - [x] Create repo `llm-as-bias-optimizer`
   - [x] Use Python 3.14
   - [x] Create `pyproject.toml`
-  - [x] Add dependencies: `numpy`, `scipy`, `scikit-learn`, `scikit-image`, `networkx`, `pydantic`, `pytest`
+  - [x] Add dependencies: `numpy`, `pandas`, `scipy`, `scikit-learn`, `scikit-image`, `networkx`, `pydantic`, `pytest`
   - [x] Create initial structure:
     ```text
     src/bias_optimizer/
@@ -22,16 +22,16 @@
     cache/
     ```
 
-- [ ] **1. Build deterministic MNIST experiment**
-  - [ ] Load MNIST
-  - [ ] Create fixed train / validation / test splits
-  - [ ] Fix random seed
-  - [ ] Add subset sampling for:
+- [x] **1. Build deterministic MNIST experiment**
+  - [x] Load MNIST
+  - [x] Create fixed train / validation / test splits
+  - [x] Fix random seed
+  - [x] Add subset sampling for:
     \[
     n\in\{500,5000,60000\}
     \]
-  - [ ] Ensure test set is inaccessible during search
-  - [ ] Write dataset/split reproducibility tests
+  - [x] Ensure test set is inaccessible during search
+  - [x] Write dataset/split reproducibility tests
 
 - [ ] **2. Implement fixed downstream learner**
   - [ ] Use `StandardScaler`
