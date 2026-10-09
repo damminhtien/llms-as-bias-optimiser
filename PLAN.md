@@ -33,17 +33,17 @@
   - [x] Ensure test set is inaccessible during search
   - [x] Write dataset/split reproducibility tests
 
-- [ ] **2. Implement fixed downstream learner**
-  - [ ] Use `StandardScaler`
-  - [ ] Use multinomial logistic regression
-  - [ ] Fix classifier hyperparameters
-  - [ ] Create `train_and_predict(features, labels)`
-  - [ ] Measure:
+- [x] **2. Implement fixed downstream learner**
+  - [x] Use `StandardScaler`
+  - [x] Use multinomial logistic regression
+  - [x] Fix classifier hyperparameters
+  - [x] Create `train_and_predict(features, labels)`
+  - [x] Measure:
     - accuracy
     - confusion matrix
     - training time
     - inference time
-  - [ ] Verify same features + same seed ⇒ same result
+  - [x] Verify same features + same seed ⇒ same result
 
 - [ ] **3. Implement baseline representations**
   - [ ] `RawPixelsOperator`
