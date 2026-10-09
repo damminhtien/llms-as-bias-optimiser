@@ -1,6 +1,184 @@
-# Architecture — V2 Representation Program Synthesis
+# Architecture — V3 Relational Bias Search
 
-## 1. Research boundary
+## V3 active architecture
+
+### Research boundary
+
+V3 asks whether LLM-guided typed program synthesis can discover compact,
+relational, transferable structural priors. V2 is frozen at `v2-final`; all V3
+archives use separate names and the V2 final report remains untouched. The LLM
+proposes falsifiable hypotheses and bounded ASTs. Local deterministic code owns
+type checking, execution, feature extraction, scoring, archiving, and evaluation.
+
+### Search and evidence flow
+
+```text
+LLM hypothesis + typed representation AST + mechanism focus
+                         │
+                         ▼
+              typed validator and compiler
+                         │
+                         ▼
+             bounded relational DSL runtime
+                         │
+                         ▼
+              fixed train/validation learner
+                         │
+                         ▼
+        five-axis MAP-Elites + structural novelty
+              │          │           │
+              │          │           └── behavioral novelty on frozen probes
+              │          └────────────── mechanism-specific falsification
+              └───────────────────────── frozen transfer and matched baselines
+```
+
+No generated Python is executed. Discovery rejects raw-pixel primitives and
+caps feature width at 128. Augmentation is a separate track where a deterministic
+raw-pixel anchor is concatenated with each structural program. The augmentation
+track measures added information; it does not decide whether raw pixels belong
+in the representation.
+
+### Behavioral descriptor and archive
+
+Every program receives the descriptor
+
+```text
+source × order × spatial × composition × complexity
+```
+
+with `source ∈ {topology, graph, path_geometry, pixel, mixed}`,
+`order ∈ {orderless, first_order, higher_order}`, `spatial ∈ {global, localized}`,
+`composition ∈ {single, composite}`, and
+`complexity ∈ {compact, moderate, deep}`. The archive retains the best quality
+candidate for each five-axis cell. Source describes the output signal: an angle
+histogram is `path_geometry` even though its implementation traverses a graph
+and paths. Multiple output signal types are `mixed`. The handcrafted descriptor
+suite fills 12 distinct cells, and descriptor tests pass before V3 search.
+
+The proposer receives underexplored descriptor cells rather than a single
+primary niche. V3 proposal batches are balanced across order-sensitive,
+spatial-relational, graph-relational, and free exploration mechanisms. The
+archive remains open to other valid cells; the target-cell list guides prompts
+but does not reject novel descriptor combinations.
+
+### Relational DSL contract
+
+The four V3 additions are deliberately relational rather than a larger list of
+complete feature operators:
+
+```text
+spatial_condition(Sequence) -> Vector
+pairwise_difference(Vector, Vector) -> Vector
+cross_histogram(Sequence, Sequence) -> Vector
+path_summary(PathSet) -> Sequence
+```
+
+`spatial_condition` summarizes sequence events by their carried image
+coordinates. Sequence transformations preserve or aggregate event locations so
+that conditioning remains well-defined after first and higher differences.
+`pairwise_difference` requires equal static vector widths. `cross_histogram`
+aligns events by nearest image location when both sequences carry coordinates,
+and otherwise interpolates along normalized event progress before building a
+bounded joint histogram. `path_summary` returns one selected deterministic
+statistic per path with its centroid attached as location metadata. These contracts let programs
+express curvature by height, turning persistence, loop-position interaction,
+and branch-location interaction without naming those complete features.
+
+### Evaluation gates
+
+The 40-candidate pilot (ten explicit seeds balanced across order-sensitive,
+spatial-relational, graph-relational, and free-exploration mechanisms plus
+2 × 15 proposals) precedes the 200-candidate search. Before scaling up, review cell occupancy, invalid and
+duplicate rates, feature dimensions, order-sensitive coverage, and relational
+candidate survival. At least 30% of valid LLM proposals, excluding the
+hand-built seeds, must fall outside the global-histogram family. A failed gate
+stops the run for archive or proposer repair.
+
+Only a passing pilot proceeds to 20 seeds plus 10 × 18 proposals. The
+`--stage1-500-only` search mode records `accuracy_5000: null` and ranks programs
+with validation accuracy at 500 examples plus the size/runtime penalties. The
+separate finalist evaluator refits only the top 20 at 500 and 5,000 examples.
+The default evaluator still uses both sizes, preserving the V2 protocol. The top
+five are frozen with their ASTs and archive hash before any official test
+partition is accessed. Transfer, counterfactual, and finalist-selection code
+validates that frozen hash.
+
+The frozen top five have a separate validation-only multi-seed runner using
+training seeds 11, 23, and 47. It reports means and standard deviations at 500
+and 5,000 examples without reopening finalist selection.
+
+Behavioral novelty uses 128 fixed MNIST validation images without labels. Each
+program is represented by pairwise Euclidean distances between probe images;
+Pearson correlation compares programs across different output widths. Novelty is
+`1 - max(0, similarity)` to the nearest other archived behavior, with
+near-identical behavior receiving zero novelty.
+
+Mechanism-specific counterfactuals preserve the nuisance statistic they name:
+
+| Mechanism under test | Intervention | Preserved statistic |
+| --- | --- | --- |
+| Stroke order | Shuffle values within each path sequence | Per-path event-value multiset and value-location pairing |
+| Spatial conditioning | Reassign event locations within each path | Global value and location marginals |
+| Cross-variable relation | Reassign path centroids among summaries, or shuffle one input at `cross_histogram` | Path counts and graph-summary marginals; centroid marginals when multiple paths exist |
+| Topology | Relocate a foreground pixel until connectivity or cycle rank changes | Foreground pixel count |
+| Global path summary | Permute feature vectors between test images | Exact batch distribution of feature vectors |
+
+The runner records intervention coverage, changed feature rows, prediction
+agreement, and accuracy change. A low changed-row count reveals when a candidate
+contains too few within-image relation events for a strong falsification.
+
+Validation-only mechanism ablations rewrite the AST: `no_spatial` collapses a
+conditional histogram into a global one; `no_order` replaces sequence-order
+summaries with moments or the underlying sequence; `no_curvature` removes angle
+differences; and `no_relation` replaces joint histograms with separate
+marginal histograms. Reports include the resulting feature widths and accuracy
+changes. The compact classical control is a 16-dimensional zoning descriptor.
+
+### Current implementation status
+
+- Five-axis behavioral descriptors and MAP-Elites cells are implemented.
+- Handcrafted descriptor tests verify 12 distinct cells, including the
+  orderless, first-order, higher-order, localized, and composite behaviors.
+- The four typed relational primitives carry sequence locations, reject invalid
+  alignments or widths, and have tests for spatial curvature, loop position,
+  turning persistence, and branch location.
+- Search requests are split across four mechanism families. The augmentation
+  controller adds the raw-pixel anchor to each structural vector automatically.
+- The pilot CLI can use ten explicit, statically validated seeds distributed
+  across its four mechanism families; the regular search retains the broader
+  deterministic seed generator.
+- The 40-program pilot passed its predeclared gate: 29/30 valid LLM programs
+  were outside the global-histogram family, with 17 occupied cells and balanced
+  accepted family counts. Exact rates and failures are in
+  [`reports/V3_PILOT.md`](reports/V3_PILOT.md).
+- Order, spatial-location, cross-relation, and topology interventions are
+  implemented and unit-tested. Validation-only mechanism ablations,
+  fixed-probe behavioral novelty, and top-five multi-seed evaluation have
+  dedicated runners and tests.
+- The full discovery search completed 200 candidates across 21 descriptor
+  cells. The Qwen archive contains 180 proposals and 27 mechanism-family
+  mismatches. The best generated relational program,
+  `angle_centroid_pairwise`, is a 30D orderless spatial composition proposed in
+  generation 7.
+- The top five scored 0.8585–0.8730 mean accuracy at 500 and 0.8843–0.9063 at
+  5,000 MNIST validation examples across seeds 11/23/47. A matched 30D zoning
+  baseline scored 0.7615 / 0.8245. See
+  [`reports/V3_SEARCH.md`](reports/V3_SEARCH.md).
+- The frozen finalists' event-to-location counterfactuals reduced accuracy by
+  24.8–35.0 points on average on stratified 2,000-image MNIST test samples.
+  Removing spatial conditioning reduced validation accuracy by 22.8–24.9
+  points at 5,000 examples.
+- Transfer evaluation used 2,000-image official-test samples and matched
+  train sizes/seeds for EMNIST Digits/Letters, KMNIST, and Fashion-MNIST. All
+  five V3 programs beat 30D zoning on EMNIST Digits; only two beat it on EMNIST
+  Letters at 5,000 examples. None beat compact controls on KMNIST or
+  Fashion-MNIST; HOG remained stronger on all four domains. This supports a
+  useful MNIST/EMNIST Digits spatial prior, not a universal handwriting rule.
+  Full protocols and scores are in [`reports/V3_EVIDENCE.md`](reports/V3_EVIDENCE.md).
+
+## V2 frozen architecture reference
+
+### 1. Research boundary
 
 V1 searched over subsets of a fixed seven-operator registry. Its results are the
 frozen baseline. V2 adds a typed representation DSL so the LLM can compose
@@ -17,7 +195,7 @@ remain in place for reproduction; its architecture notes are preserved in
 [`ARCHITECTURE_V1.md`](ARCHITECTURE_V1.md). V2 proposals use `ProgramBiasSpec`
 and the separate program-search path.
 
-## 2. V2 data flow
+### 2. V2 data flow
 
 ```text
 LLMClient
@@ -48,7 +226,7 @@ The V1 `Evaluator`, fixed learner, and data split implementation are reused.
 fixed-width representation. V2 uses its own cache namespace and candidate
 hash, so it cannot collide with V1 feature matrices.
 
-## 3. Program domain and JSON contract
+### 3. Program domain and JSON contract
 
 `Expr` is an immutable tree with three fields:
 
@@ -69,7 +247,7 @@ name, hypothesis, mechanism, program, prediction, falsification
 Canonical JSON is the basis for SHA-256 identity and cache keys. AST identity,
 rather than the prose explanation, is used to deduplicate representations.
 
-## 4. Typed primitive language
+### 4. Typed primitive language
 
 The V2 allow-list is implemented in `dsl/primitives.py`. `AngleSequence` is a
 typed `Sequence` specialization, so angle wrapping cannot be applied to graph
@@ -113,7 +291,7 @@ width for every image. Repeated identical subtrees are evaluated once per image;
 a bounded cross-candidate cache reuses expensive validated subtrees when the
 canonical AST and exact dataset-row key match.
 
-## 5. Independent search tracks
+### 5. Independent search tracks
 
 | Track | Raw pixels | Default maximum width | Role |
 | --- | --- | ---: | --- |
@@ -133,7 +311,7 @@ F=0.6A_{500}+0.4A_{5000}-0.001\log(1+d)-0.0001\log(1+t),
 where \(d\) is feature width and \(t\) is measured feature, training, and
 inference runtime. The official test split remains outside the search process.
 
-## 6. Quality-diversity archive and novelty
+### 6. Quality-diversity archive and novelty
 
 The archive derives a primary niche deterministically from primitive families:
 
@@ -159,7 +337,7 @@ Transfer, sequence counterfactuals, and invariance search are isolated
 post-search workflows described below. Pareto selection is still a future
 option; the current archive retains one quality elite per descriptor cell.
 
-## 7. Proposal and search lifecycle
+### 7. Proposal and search lifecycle
 
 ```text
 20 deterministic typed seed programs
@@ -199,7 +377,7 @@ expression signature for every archived AST in its strict duplicate ban list;
 this avoids both recent-history gaps and repeated JSON field overhead. The raw
 prompts and model responses are saved separately for audit.
 
-## 8. Package layout
+### 8. Package layout
 
 ```text
 src/bias_optimizer/
@@ -247,7 +425,7 @@ V1's operator compiler, search engine, finalist selection, final evaluation,
 and report remain available. The experiment branches share the learner and data
 protocol but keep candidate schemas and search archives separate.
 
-## 9. Running V2
+### 9. Running V2
 
 ```sh
 export OLLAMA_MODEL=qwen3.5:35b-mlx
@@ -260,7 +438,7 @@ generation. Report the two tracks separately. A candidate program alone is not
 evidence of a discovered inductive bias; transfer and mechanism-falsification
 results bound that claim.
 
-## 10. Frozen transfer evaluation
+### 10. Frozen transfer evaluation
 
 `freeze_transfer_candidates.py` ranks raw-free discovery records by MNIST
 validation accuracy at 500 samples, then by the stored validation score and
@@ -289,7 +467,7 @@ it is not presented as the full test-set score. Three human structural controls
 are measured in each domain. This design answers whether MNIST-selected
 representations carry over, while Fashion-MNIST is the negative-control task.
 
-## 11. Sequence counterfactuals
+### 11. Sequence counterfactuals
 
 `ProgramPipeline.transform_with_sequence_shuffle()` applies a deterministic
 permutation to each path group after a selected sequence-valued primitive. It
@@ -301,7 +479,7 @@ accuracy change and prediction agreement over three seeds. This is direct
 evidence about order dependence in the frozen program; a small or zero change
 does not support an order-sensitive mechanism.
 
-## 12. Invariance programs and orbit pooling
+### 12. Invariance programs and orbit pooling
 
 `TransformProgram` is a separate typed sequence of at most four `Image -> Image`
 atoms. Its allow-list includes integer translations, small rotations, one-pixel
@@ -318,7 +496,7 @@ and three seeded transformed views. The script cannot load the official test
 split, so its result is validation evidence and must be followed by an
 independent held-out evaluation before a strong invariance claim.
 
-## 13. Cross-candidate subexpression cache
+### 13. Cross-candidate subexpression cache
 
 The in-memory LRU key is `(exact split key + row index, canonical subtree AST)`.
 Only expensive typed operations (skeletonization, graph/path construction, and
@@ -329,7 +507,7 @@ hit rate. `profile_subexpression_cache.py` compares the uncached and cached
 feature matrices byte-for-byte and reports sample-specific elapsed time. The
 profile is a local smoke measurement, not a universal speed claim.
 
-## 14. Post-search commands
+### 14. Post-search commands
 
 After both tracks complete, run the stages in this order:
 
@@ -347,7 +525,7 @@ The final report should cite the archive and manifest hashes, exact candidate
 IDs, dataset checksums/splits, sample counts, metrics, and cache equality. It
 must distinguish MNIST validation search results from post-freeze test results.
 
-## 15. Measured V2 run (2026-10-09)
+### 15. Measured V2 run (2026-10-09)
 
 Both tracks completed 20 seed programs plus 10 × 18 generation records. The
 discovery archive's best `cycle_angle_hist` candidate reached 0.7180 validation

@@ -36,10 +36,10 @@ class ModelEvaluation:
 
 @dataclass(frozen=True, slots=True)
 class Evaluation:
-    """Combined validation results for the fixed 500/5,000-sample runs."""
+    """Validation results; the 5,000-sample score is optional for screening."""
 
     accuracy_500: float
-    accuracy_5000: float
+    accuracy_5000: float | None
     feature_dim: int
     feature_runtime_ms: float
     training_runtime_ms: float
@@ -47,10 +47,12 @@ class Evaluation:
     confusion_matrix: NDArray[np.int64]
 
     def __post_init__(self) -> None:
-        for name in ("accuracy_500", "accuracy_5000"):
-            value = getattr(self, name)
-            if not isfinite(value) or not 0.0 <= value <= 1.0:
-                raise ValueError(f"{name} must be finite and between 0 and 1")
+        if not isfinite(self.accuracy_500) or not 0.0 <= self.accuracy_500 <= 1.0:
+            raise ValueError("accuracy_500 must be finite and between 0 and 1")
+        if self.accuracy_5000 is not None and (
+            not isfinite(self.accuracy_5000) or not 0.0 <= self.accuracy_5000 <= 1.0
+        ):
+            raise ValueError("accuracy_5000 must be finite and between 0 and 1")
         if type(self.feature_dim) is not int or self.feature_dim <= 0:
             raise ValueError("feature_dim must be a positive integer")
         for name in (
@@ -79,10 +81,12 @@ class Evaluation:
 
     @property
     def ranking_score(self) -> float:
-        """Score 0.6/0.4 accuracy minus 0.001 size and 0.0001 runtime penalties."""
+        """Use 500-sample quality for screening, then 0.6/0.4 for full results."""
+        accuracy = (
+            self.accuracy_500
+            if self.accuracy_5000 is None
+            else 0.6 * self.accuracy_500 + 0.4 * self.accuracy_5000
+        )
         return (
-            0.6 * self.accuracy_500
-            + 0.4 * self.accuracy_5000
-            - 0.001 * log1p(self.feature_dim)
-            - 0.0001 * log1p(self.runtime_ms)
+            accuracy - 0.001 * log1p(self.feature_dim) - 0.0001 * log1p(self.runtime_ms)
         )

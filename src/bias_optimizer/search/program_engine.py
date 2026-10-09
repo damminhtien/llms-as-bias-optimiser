@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Protocol
 
 from bias_optimizer.domain.program import ProgramBiasSpec
-from bias_optimizer.domain.program_search import ProgramSearchRecord
+from bias_optimizer.domain.program_search import (
+    ProgramSearchFailure,
+    ProgramSearchRecord,
+)
 from bias_optimizer.dsl.compiler import ProgramCompiler
+from bias_optimizer.dsl.mutations import add_raw_pixel_anchor
 from bias_optimizer.dsl.seeds import generate_seed_programs
 from bias_optimizer.dsl.validator import ProgramConstraints, SearchTrack
 from bias_optimizer.llm.program_proposer import (
@@ -17,7 +23,12 @@ from bias_optimizer.llm.program_proposer import (
     ProposedProgram,
 )
 from bias_optimizer.ml.evaluator import ProgramEvaluator
-from bias_optimizer.novelty.descriptors import IMPLEMENTED_NICHES, describe_program
+from bias_optimizer.novelty.descriptors import (
+    DESCRIPTOR_TARGET_CELLS,
+    MECHANISM_FAMILIES,
+    describe_program,
+    mechanism_family,
+)
 from bias_optimizer.novelty.map_elites import MapElitesArchive
 from bias_optimizer.novelty.tree_distance import structural_novelty
 
@@ -40,7 +51,7 @@ class _ProgramProposer(Protocol):
 
 
 class ProgramSearchEngine:
-    """Run a constrained expression search and maintain one elite per QD cell."""
+    """Run a constrained expression search with balanced mechanism proposals."""
 
     def __init__(
         self,
@@ -50,30 +61,52 @@ class ProgramSearchEngine:
         evaluator: _ProgramEvaluator | None = None,
         proposer: _ProgramProposer | None = None,
         archive: MapElitesArchive | None = None,
+        failure_path: Path | None = None,
         seed_programs: Iterable[ProgramBiasSpec] | None = None,
         seed_count: int = 20,
         seed: int = 42,
-        max_proposal_rounds: int = 5,
+        max_proposal_rounds: int = 20,
         require_complete: bool = False,
     ) -> None:
         self.track = SearchTrack(track)
-        self.max_feature_dim = (
-            max_feature_dim
-            if max_feature_dim is not None
-            else (128 if self.track is SearchTrack.DISCOVERY else 1_024)
-        )
+        self.max_feature_dim = max_feature_dim if max_feature_dim is not None else 128
         self.constraints = ProgramConstraints(
             track=self.track,
             max_feature_dim=self.max_feature_dim,
+            forbid_raw_pixels=self.track is SearchTrack.AUGMENTATION,
+            require_vector_root=self.track is SearchTrack.AUGMENTATION,
         )
         self._compiler = ProgramCompiler(self.constraints)
         self._evaluator = (
             evaluator
             if evaluator is not None
-            else ProgramEvaluator(compiler=self._compiler)
+            else ProgramEvaluator(
+                compiler=self._compiler,
+                raw_pixel_anchor=self.track is SearchTrack.AUGMENTATION,
+            )
         )
         self._proposer = proposer if proposer is not None else ProgramProposer()
         self._archive = archive if archive is not None else MapElitesArchive()
+        self._failure_path = (
+            Path(failure_path)
+            if failure_path is not None
+            else (
+                self._archive.path.with_name(
+                    f"{self._archive.path.stem}_failures.jsonl"
+                )
+                if self._archive.path is not None
+                else None
+            )
+        )
+        self._failure_count = (
+            sum(
+                1
+                for line in self._failure_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            )
+            if self._failure_path is not None and self._failure_path.exists()
+            else 0
+        )
         if type(max_proposal_rounds) is not int or max_proposal_rounds <= 0:
             raise ValueError("max_proposal_rounds must be positive")
         if type(require_complete) is not bool:
@@ -98,6 +131,10 @@ class ProgramSearchEngine:
     @property
     def archive(self) -> MapElitesArchive:
         return self._archive
+
+    @property
+    def failure_count(self) -> int:
+        return self._failure_count
 
     def run(
         self,
@@ -151,64 +188,113 @@ class ProgramSearchEngine:
             self._evaluate_and_archive(bias, generation=0, parent_ids=())
 
     def _run_generation(self, generation: int, target_count: int) -> None:
-        accepted = 0
-        for _ in range(self._max_proposal_rounds):
-            remaining = target_count - accepted
-            if remaining <= 0:
-                break
-            parents = self._archive.top(_ELITE_PARENTS)
-            target_niches = tuple(
-                niche
-                for niche in IMPLEMENTED_NICHES
-                if self.track is SearchTrack.AUGMENTATION or niche != "raw_pixels"
-            )
-            context = ProgramSearchContext(
-                generation=generation,
-                track=self.track,
-                max_feature_dim=self.max_feature_dim,
-                top_candidates=parents,
-                underexplored_niches=self._archive.underexplored_niches(target_niches),
-                explored_programs=tuple(
-                    record.bias.program.to_json() for record in self._archive.records
-                ),
-            )
-            previous_biases = tuple(record.bias for record in self._archive.records)
-            try:
-                proposals = self._proposer.propose(
-                    context,
-                    previous_biases=previous_biases,
-                    count=min(remaining, _PROPOSAL_BATCH_SIZE),
-                )
-            except ProgramProposalError:
-                # The raw failed attempts are durable; try another batch with a
-                # distinct archive-derived proposal index before giving up.
-                continue
-            if not proposals:
-                continue
-            added_before = len(self._archive.records)
-            parent_ids = tuple(record.candidate_id for record in parents)
-            seen_programs = {
-                record.bias.program.to_json() for record in self._archive.records
-            }
-            for proposal in proposals:
-                if not isinstance(proposal, ProposedProgram):
-                    raise TypeError("proposer must return ProposedProgram values")
-                signature = proposal.bias.program.to_json()
-                if signature in seen_programs:
-                    continue
-                seen_programs.add(signature)
-                self._evaluate_and_archive(
-                    proposal.bias,
-                    generation=generation,
-                    parent_ids=parent_ids,
-                    prompt=proposal.prompt,
-                    model=proposal.model,
-                )
-                accepted += 1
-                if accepted >= target_count:
+        quotas = [target_count // len(MECHANISM_FAMILIES)] * len(MECHANISM_FAMILIES)
+        for index in range(target_count % len(MECHANISM_FAMILIES)):
+            quotas[index] += 1
+        rounds_per_family = max(1, self._max_proposal_rounds // len(MECHANISM_FAMILIES))
+        previous_biases = tuple(record.bias for record in self._archive.records)
+        seen_programs = {
+            record.bias.program.to_json() for record in self._archive.records
+        }
+
+        for family, quota in zip(MECHANISM_FAMILIES, quotas, strict=True):
+            family_accepted = 0
+            for _ in range(rounds_per_family):
+                remaining = quota - family_accepted
+                if remaining <= 0:
                     break
-            if len(self._archive.records) == added_before:
-                continue
+                parents = self._archive.top(_ELITE_PARENTS)
+                target_cells = tuple(
+                    cell
+                    for cell in DESCRIPTOR_TARGET_CELLS
+                    if self.track is SearchTrack.AUGMENTATION or cell[0] != "pixel"
+                )
+                context = ProgramSearchContext(
+                    generation=generation,
+                    track=self.track,
+                    max_feature_dim=self.max_feature_dim,
+                    top_candidates=parents,
+                    underexplored_cells=self._archive.underexplored_cells(target_cells),
+                    explored_programs=tuple(sorted(seen_programs)),
+                    mechanism_focus=family,
+                )
+                try:
+                    proposals = self._proposer.propose(
+                        context,
+                        previous_biases=previous_biases,
+                        count=min(remaining, _PROPOSAL_BATCH_SIZE),
+                    )
+                except ProgramProposalError:
+                    # Failed exchanges are durable; retry this family only.
+                    continue
+                parent_ids = tuple(record.candidate_id for record in parents)
+                for proposal in proposals:
+                    if not isinstance(proposal, ProposedProgram):
+                        raise TypeError("proposer must return ProposedProgram values")
+                    signature = proposal.bias.program.to_json()
+                    if signature in seen_programs:
+                        continue
+                    seen_programs.add(signature)
+                    actual_family = mechanism_family(proposal.bias.program)
+                    if actual_family != family:
+                        self._record_failure(
+                            proposal.bias,
+                            generation=generation,
+                            mechanism_focus=family,
+                            failure_type="mechanism_mismatch",
+                            message=f"proposal classified as {actual_family}",
+                        )
+                        continue
+                    try:
+                        self._evaluate_and_archive(
+                            proposal.bias,
+                            generation=generation,
+                            parent_ids=parent_ids,
+                            prompt=proposal.prompt,
+                            model=proposal.model,
+                        )
+                    except (
+                        TypeError,
+                        ValueError,
+                        FloatingPointError,
+                        OverflowError,
+                    ) as exc:
+                        self._record_failure(
+                            proposal.bias,
+                            generation=generation,
+                            mechanism_focus=family,
+                            failure_type="evaluation_error",
+                            message=f"{type(exc).__name__}: {exc}",
+                        )
+                        continue
+                    family_accepted += 1
+                    if family_accepted >= quota:
+                        break
+
+    def _record_failure(
+        self,
+        bias: ProgramBiasSpec,
+        *,
+        generation: int,
+        mechanism_focus: str,
+        failure_type: str,
+        message: str,
+    ) -> None:
+        record = ProgramSearchFailure(
+            generation=generation,
+            track=self.track.value,
+            mechanism_focus=mechanism_focus,
+            bias=bias,
+            failure_type=failure_type,
+            message=message[:1_000],
+        )
+        if self._failure_path is not None:
+            self._failure_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._failure_path.open("a", encoding="utf-8") as stream:
+                stream.write(record.to_json() + "\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+        self._failure_count += 1
 
     def _evaluate_and_archive(
         self,
@@ -221,7 +307,12 @@ class ProgramSearchEngine:
     ) -> None:
         self._compiler.compile(bias.program)
         evaluation = self._evaluator.evaluate(bias)
-        descriptor = describe_program(bias.program)
+        described_program = (
+            add_raw_pixel_anchor(bias.program)
+            if self.track is SearchTrack.AUGMENTATION
+            else bias.program
+        )
+        descriptor = describe_program(described_program)
         novelty = structural_novelty(
             bias.program,
             tuple(record.bias.program for record in self._archive.records),
@@ -232,8 +323,11 @@ class ProgramSearchEngine:
                 track=self.track.value,
                 bias=bias,
                 evaluation=evaluation,
-                niche=descriptor.primary_niche,
-                complexity_bin=descriptor.complexity_bin,
+                source=descriptor.source,
+                order=descriptor.order,
+                spatial=descriptor.spatial,
+                composition=descriptor.composition,
+                complexity=descriptor.complexity,
                 novelty=novelty,
                 parent_ids=parent_ids,
                 prompt=prompt,

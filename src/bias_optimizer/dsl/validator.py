@@ -24,6 +24,8 @@ class ProgramConstraints:
     max_feature_dim: int | None = None
     max_depth: int = 6
     max_nodes: int = 127
+    forbid_raw_pixels: bool = False
+    require_vector_root: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.track, SearchTrack):
@@ -35,6 +37,9 @@ class ProgramConstraints:
             value = getattr(self, name)
             if type(value) is not int or value <= 0:
                 raise ValueError(f"{name} must be a positive integer")
+        for name in ("forbid_raw_pixels", "require_vector_root"):
+            if type(getattr(self, name)) is not bool:
+                raise TypeError(f"{name} must be a boolean")
 
 
 def infer_type(expr: Expr) -> TypeInfo:
@@ -76,6 +81,8 @@ def validate_program(
         raise TypeError(
             f"program root must produce Vector or Scalar, got {info.value_type.value}"
         )
+    if policy.require_vector_root and info.value_type is not ValueType.VECTOR:
+        raise TypeError("program root must produce Vector on this search track")
     dimension = 1 if info.value_type is ValueType.SCALAR else info.dimension
     if dimension is None:
         raise ValueError("program feature dimension must be statically known")
@@ -91,6 +98,8 @@ def validate_program(
         raise ValueError(
             f"program has {info.node_count} nodes; limit is {policy.max_nodes}"
         )
-    if policy.track is SearchTrack.DISCOVERY and "flatten_pixels" in info.operations:
-        raise ValueError("raw pixels are not allowed on the discovery track")
+    if (
+        policy.track is SearchTrack.DISCOVERY or policy.forbid_raw_pixels
+    ) and "flatten_pixels" in info.operations:
+        raise ValueError("raw pixels are not allowed in structural programs")
     return info

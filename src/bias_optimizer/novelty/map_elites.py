@@ -7,16 +7,17 @@ import os
 from pathlib import Path
 
 from bias_optimizer.domain.program_search import ProgramSearchRecord
+from bias_optimizer.novelty.descriptors import DescriptorCell
 
 
 class MapElitesArchive:
-    """Persist evaluated candidates and keep one quality elite per niche/cost cell."""
+    """Persist candidates and keep one quality elite per five-axis descriptor cell."""
 
     def __init__(self, path: Path | None = None) -> None:
         self.path = Path(path) if path is not None else None
         self._records: list[ProgramSearchRecord] = []
         self._by_id: dict[str, ProgramSearchRecord] = {}
-        self._cells: dict[tuple[str, str], ProgramSearchRecord] = {}
+        self._cells: dict[DescriptorCell, ProgramSearchRecord] = {}
         if self.path is not None and self.path.exists():
             for line_number, line in enumerate(
                 self.path.read_text(encoding="utf-8").splitlines(), 1
@@ -44,14 +45,16 @@ class MapElitesArchive:
         )
 
     @property
-    def occupied_cells(self) -> tuple[tuple[str, str], ...]:
+    def occupied_cells(self) -> tuple[DescriptorCell, ...]:
         return tuple(sorted(self._cells))
 
     def contains(self, candidate_id: str) -> bool:
         return candidate_id in self._by_id
 
-    def elite(self, niche: str, complexity_bin: str) -> ProgramSearchRecord | None:
-        return self._cells.get((niche, complexity_bin))
+    def elite(self, cell: DescriptorCell) -> ProgramSearchRecord | None:
+        if not isinstance(cell, tuple) or len(cell) != 5:
+            raise ValueError("descriptor cell must contain five axis values")
+        return self._cells.get(cell)
 
     def add(self, record: ProgramSearchRecord) -> bool:
         if not isinstance(record, ProgramSearchRecord):
@@ -72,8 +75,14 @@ class MapElitesArchive:
             raise ValueError("count must be a positive integer")
         return self.elites[:count]
 
+    def underexplored_cells(
+        self, cells: tuple[DescriptorCell, ...]
+    ) -> tuple[DescriptorCell, ...]:
+        return tuple(cell for cell in cells if cell not in self._cells)
+
     def underexplored_niches(self, niches: tuple[str, ...]) -> tuple[str, ...]:
-        occupied = {niche for niche, _ in self._cells}
+        """Return V2 niche gaps for the frozen V2 report helper."""
+        occupied = {record.niche for record in self._records}
         return tuple(niche for niche in niches if niche not in occupied)
 
     def _insert(self, record: ProgramSearchRecord) -> None:
@@ -82,7 +91,7 @@ class MapElitesArchive:
             return
         self._records.append(record)
         self._by_id[candidate_id] = record
-        cell = (record.niche, record.complexity_bin)
+        cell = record.descriptor_cell
         current = self._cells.get(cell)
         if (
             current is None

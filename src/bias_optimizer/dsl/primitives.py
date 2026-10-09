@@ -31,6 +31,36 @@ TypeSet = frozenset[ValueType]
 @dataclass(frozen=True, slots=True)
 class SequenceValue:
     groups: tuple[NDArray[np.float64], ...]
+    locations: tuple[NDArray[np.float64], ...] = ()
+
+    def __post_init__(self) -> None:
+        groups = tuple(
+            np.asarray(group, dtype=np.float64).reshape(-1) for group in self.groups
+        )
+        locations = tuple(
+            np.asarray(group, dtype=np.float64) for group in self.locations
+        )
+        if locations and len(locations) != len(groups):
+            raise ValueError("sequence location groups must match value groups")
+        if locations and any(
+            location.shape != (len(group), 2) or not np.isfinite(location).all()
+            for group, location in zip(groups, locations, strict=True)
+        ):
+            raise ValueError("each sequence location group must be finite N-by-2 data")
+        object.__setattr__(self, "groups", groups)
+        object.__setattr__(self, "locations", locations)
+
+
+@dataclass(frozen=True, slots=True)
+class PathSetValue:
+    paths: tuple[tuple[tuple[int, int], ...], ...]
+    branch_pixels: frozenset[tuple[int, int]] = frozenset()
+
+    def __len__(self) -> int:
+        return len(self.paths)
+
+    def __iter__(self):
+        return iter(self.paths)
 
 
 def _finite_number(params: Mapping[str, Any], name: str, default: float) -> float:
@@ -155,6 +185,52 @@ def _spatial_params(params: Mapping[str, Any]) -> None:
         raise ValueError("spatial_split accepts only rows and cols")
 
 
+def _spatial_condition_params(params: Mapping[str, Any]) -> None:
+    axis = params.get("axis", "vertical")
+    regions = _integer(params, "regions", 3)
+    bins = _integer(params, "bins", 8)
+    low = _finite_number(params, "low", -pi)
+    high = _finite_number(params, "high", pi)
+    if axis not in {"vertical", "horizontal"}:
+        raise ValueError("spatial_condition axis must be vertical or horizontal")
+    if not 1 <= regions <= 16 or not 2 <= bins <= 16 or regions * bins > 128:
+        raise ValueError("spatial_condition width must be at most 128 features")
+    if not -128 <= low < high <= 128:
+        raise ValueError(
+            "spatial_condition range must satisfy -128 <= low < high <= 128"
+        )
+    if set(params) - {"axis", "regions", "bins", "low", "high"}:
+        raise ValueError("spatial_condition accepts axis, regions, bins, low, and high")
+
+
+def _cross_histogram_params(params: Mapping[str, Any]) -> None:
+    bins_x = _integer(params, "bins_x", 6)
+    bins_y = _integer(params, "bins_y", 6)
+    low_x = _finite_number(params, "low_x", 0.0)
+    high_x = _finite_number(params, "high_x", 1.0)
+    low_y = _finite_number(params, "low_y", 0.0)
+    high_y = _finite_number(params, "high_y", 1.0)
+    if not 2 <= bins_x <= 11 or not 2 <= bins_y <= 11 or bins_x * bins_y > 128:
+        raise ValueError("cross_histogram width must be at most 128 features")
+    if not -128 <= low_x < high_x <= 128 or not -128 <= low_y < high_y <= 128:
+        raise ValueError(
+            "cross_histogram ranges must satisfy -128 <= low < high <= 128"
+        )
+    if set(params) - {"bins_x", "bins_y", "low_x", "high_x", "low_y", "high_y"}:
+        raise ValueError(
+            "cross_histogram accepts bins_x, bins_y, low_x, high_x, low_y, and high_y"
+        )
+
+
+def _path_summary_params(params: Mapping[str, Any]) -> None:
+    measure = params.get("measure", "length")
+    measures = {"length", "centroid_x", "centroid_y", "is_loop", "branch_endpoints"}
+    if measure not in measures:
+        raise ValueError(f"path_summary measure must be one of {sorted(measures)}")
+    if set(params) - {"measure"}:
+        raise ValueError("path_summary accepts only the measure parameter")
+
+
 def _ratio_params(params: Mapping[str, Any]) -> None:
     epsilon = _finite_number(params, "epsilon", 1e-6)
     if not 1e-12 <= epsilon <= 1.0:
@@ -168,7 +244,7 @@ def _same_dimension(args: tuple[TypeInfo, ...], _: Mapping[str, Any]) -> int | N
     if any(dimension is None for dimension in dimensions):
         raise ValueError("vector dimensions must be statically known")
     if len(set(dimensions)) != 1:
-        raise ValueError("ratio inputs must have the same vector dimension")
+        raise ValueError("vector inputs must have the same dimension")
     return dimensions[0]
 
 
@@ -177,6 +253,112 @@ def _sequence_groups(values: Any) -> tuple[NDArray[np.float64], ...]:
     if isinstance(values, SequenceValue):
         return values.groups
     return (np.asarray(values, dtype=np.float64).reshape(-1),)
+
+
+def _sequence_locations(values: Any) -> tuple[NDArray[np.float64], ...]:
+    if isinstance(values, SequenceValue):
+        return values.locations
+    return ()
+
+
+def _flatten_locations(
+    values: Any,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]] | None:
+    groups = _sequence_groups(values)
+    locations = _sequence_locations(values)
+    if not locations or len(groups) != len(locations):
+        return None
+    flat_values = np.concatenate(groups) if groups else np.empty(0, dtype=np.float64)
+    flat_locations = (
+        np.concatenate(locations, axis=0)
+        if locations
+        else np.empty((0, 2), dtype=np.float64)
+    )
+    return flat_values, flat_locations
+
+
+def _resample_pair(
+    left: NDArray[np.float64], right: NDArray[np.float64]
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    if not len(left) or not len(right):
+        return np.empty(0, dtype=np.float64), np.empty(0, dtype=np.float64)
+    size = max(len(left), len(right))
+    progress = np.linspace(0.0, 1.0, size)
+    left_progress = np.linspace(0.0, 1.0, len(left))
+    right_progress = np.linspace(0.0, 1.0, len(right))
+    return (
+        np.interp(progress, left_progress, left),
+        np.interp(progress, right_progress, right),
+    )
+
+
+def _nearest_location_pair(
+    left_values: NDArray[np.float64],
+    left_locations: NDArray[np.float64],
+    right_values: NDArray[np.float64],
+    right_locations: NDArray[np.float64],
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    if not len(left_values) or not len(right_values):
+        return np.empty(0), np.empty(0)
+    distances = np.sum(
+        (left_locations[:, np.newaxis, :] - right_locations[np.newaxis, :, :]) ** 2,
+        axis=2,
+    )
+    nearest = np.argmin(distances, axis=1)
+    return left_values, right_values[nearest]
+
+
+def _cross_histogram_pairs(
+    left: Any, right: Any
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    left_groups = _sequence_groups(left)
+    right_groups = _sequence_groups(right)
+    left_locations = _sequence_locations(left)
+    right_locations = _sequence_locations(right)
+
+    if len(left_groups) == len(right_groups):
+        paired = []
+        for index, (left_group, right_group) in enumerate(
+            zip(left_groups, right_groups, strict=True)
+        ):
+            if len(left_group) == len(right_group):
+                paired.append((left_group, right_group))
+            elif left_locations and right_locations:
+                paired.append(
+                    _nearest_location_pair(
+                        left_group,
+                        left_locations[index],
+                        right_group,
+                        right_locations[index],
+                    )
+                )
+            else:
+                paired.append(_resample_pair(left_group, right_group))
+        if not paired:
+            return np.empty(0), np.empty(0)
+        return (
+            np.concatenate([pair[0] for pair in paired]),
+            np.concatenate([pair[1] for pair in paired]),
+        )
+
+    left_data = _flatten_locations(left)
+    right_data = _flatten_locations(right)
+    if left_data is not None and right_data is not None:
+        return _nearest_location_pair(*left_data, *right_data)
+    return _resample_pair(
+        np.concatenate(left_groups) if left_groups else np.empty(0),
+        np.concatenate(right_groups) if right_groups else np.empty(0),
+    )
+
+
+def _difference_locations(
+    locations: tuple[NDArray[np.float64], ...],
+) -> tuple[NDArray[np.float64], ...]:
+    return tuple((group[:-1] + group[1:]) / 2 for group in locations)
+
+
+def _path_groups(values: Any) -> tuple[tuple[tuple[int, int], ...], ...]:
+    return values.paths if isinstance(values, PathSetValue) else tuple(values)
 
 
 def _flatten_sequence(values: Any) -> NDArray[np.float64]:
@@ -188,6 +370,18 @@ def _concat_dimension(args: tuple[TypeInfo, ...], _: Mapping[str, Any]) -> int:
     if any(item.dimension is None for item in args):
         raise ValueError("concat inputs must have statically known dimensions")
     return sum(item.dimension for item in args if item.dimension is not None)
+
+
+def _spatial_condition_dimension(
+    _: tuple[TypeInfo, ...], params: Mapping[str, Any]
+) -> int:
+    return _integer(params, "regions", 3) * _integer(params, "bins", 8)
+
+
+def _cross_histogram_dimension(
+    _: tuple[TypeInfo, ...], params: Mapping[str, Any]
+) -> int:
+    return _integer(params, "bins_x", 6) * _integer(params, "bins_y", 6)
 
 
 def _identity_dimension(args: tuple[TypeInfo, ...], _: Mapping[str, Any]) -> int | None:
@@ -336,6 +530,13 @@ PRIMITIVES: Mapping[str, PrimitiveDefinition] = MappingProxyType(
             _unknown_dimension,
             "geometry",
         ),
+        "path_summary": PrimitiveDefinition(
+            (_PATHS,),
+            ValueType.SEQUENCE,
+            _path_summary_params,
+            _unknown_dimension,
+            "geometry",
+        ),
         "delta": PrimitiveDefinition(
             (_SEQUENCE,),
             ValueType.SEQUENCE,
@@ -386,6 +587,20 @@ PRIMITIVES: Mapping[str, PrimitiveDefinition] = MappingProxyType(
             _lags_dimension,
             "frequency_scale",
         ),
+        "spatial_condition": PrimitiveDefinition(
+            (_SEQUENCE_TYPES,),
+            ValueType.VECTOR,
+            _spatial_condition_params,
+            _spatial_condition_dimension,
+            "spatial_relations",
+        ),
+        "cross_histogram": PrimitiveDefinition(
+            (_SEQUENCE_TYPES, _SEQUENCE_TYPES),
+            ValueType.VECTOR,
+            _cross_histogram_params,
+            _cross_histogram_dimension,
+            "spatial_relations",
+        ),
         "normalize": PrimitiveDefinition(
             (_VECTOR,), ValueType.VECTOR, _no_params, _identity_dimension
         ),
@@ -403,6 +618,13 @@ PRIMITIVES: Mapping[str, PrimitiveDefinition] = MappingProxyType(
             (_VECTOR, _VECTOR),
             ValueType.VECTOR,
             _ratio_params,
+            _same_dimension,
+            "compositional",
+        ),
+        "pairwise_difference": PrimitiveDefinition(
+            (_VECTOR, _VECTOR),
+            ValueType.VECTOR,
+            _no_params,
             _same_dimension,
             "compositional",
         ),
@@ -431,10 +653,10 @@ def _cycle_rank(graph: SkeletonGraph) -> int:
 
 
 def _path_edges(
-    paths: Sequence[Sequence[tuple[int, int]]],
+    paths: Sequence[Sequence[tuple[int, int]]] | PathSetValue,
 ) -> tuple[NDArray[np.float64], ...]:
     groups: list[NDArray[np.float64]] = []
-    for path in paths:
+    for path in _path_groups(paths):
         if len(path) < 2:
             continue
         points = np.asarray(path, dtype=np.float64)
@@ -443,16 +665,72 @@ def _path_edges(
 
 
 def _path_angles(
-    paths: Sequence[Sequence[tuple[int, int]]],
+    paths: Sequence[Sequence[tuple[int, int]]] | PathSetValue,
 ) -> tuple[NDArray[np.float64], ...]:
     groups: list[NDArray[np.float64]] = []
-    for path in paths:
+    for path in _path_groups(paths):
         if len(path) < 2:
             continue
         points = np.asarray(path, dtype=np.float64)
         deltas = np.diff(points, axis=0)
         groups.append(np.arctan2(-deltas[:, 0], deltas[:, 1]))
     return tuple(groups)
+
+
+def _path_segment_locations(
+    paths: Sequence[Sequence[tuple[int, int]]] | PathSetValue,
+) -> tuple[NDArray[np.float64], ...]:
+    return tuple(
+        (points[:-1] + points[1:]) / 2
+        for path in _path_groups(paths)
+        if len(path) >= 2
+        for points in (np.asarray(path, dtype=np.float64),)
+    )
+
+
+def _path_summary(
+    path_set: PathSetValue,
+    *,
+    measure: str,
+    image: NDArray[np.float32],
+) -> SequenceValue:
+    height, width = image.shape
+    values: list[float] = []
+    centroids: list[tuple[float, float]] = []
+    for path in path_set.paths:
+        points = np.asarray(path, dtype=np.float64)
+        centroid = points.mean(axis=0) if len(points) else np.zeros(2)
+        centroids.append((float(centroid[0]), float(centroid[1])))
+        if measure == "length":
+            value = (
+                float(np.linalg.norm(np.diff(points, axis=0), axis=1).sum())
+                if len(points) >= 2
+                else 0.0
+            )
+        elif measure == "centroid_y":
+            value = float(centroid[0] / max(height - 1, 1))
+        elif measure == "centroid_x":
+            value = float(centroid[1] / max(width - 1, 1))
+        elif measure == "is_loop":
+            value = float(len(path) > 2 and path[0] == path[-1])
+        elif measure == "branch_endpoints":
+            endpoints = (path[0], path[-1]) if path else ()
+            value = float(
+                sum(
+                    any(
+                        max(abs(row - branch_row), abs(col - branch_col)) <= 1
+                        for branch_row, branch_col in path_set.branch_pixels
+                    )
+                    for row, col in endpoints
+                )
+            )
+        else:  # The validator owns the allow-list for measures.
+            raise ValueError(f"unknown path summary measure {measure!r}")
+        values.append(value)
+    return SequenceValue(
+        (np.asarray(values, dtype=np.float64),),
+        (np.asarray(centroids, dtype=np.float64).reshape((-1, 2)),),
+    )
 
 
 def _spatial_vector(
@@ -493,16 +771,40 @@ def execute_primitive(
     if op == "cycle_rank":
         return float(_cycle_rank(args[0]))
     if op == "paths":
-        return extract_graph_paths(args[0])
+        graph = args[0]
+        return PathSetValue(
+            paths=extract_graph_paths(graph),
+            branch_pixels=frozenset(
+                node for node, degree in graph.degree if degree >= 3
+            ),
+        )
     if op == "degree_sequence":
-        return np.asarray([degree for _, degree in args[0].degree], dtype=np.float64)
+        nodes = tuple(args[0].degree)
+        return SequenceValue(
+            (np.asarray([degree for _, degree in nodes], dtype=np.float64),),
+            (
+                np.asarray([node for node, _ in nodes], dtype=np.float64).reshape(
+                    (-1, 2)
+                ),
+            ),
+        )
+    if op == "path_summary":
+        path_set = args[0]
+        if not isinstance(path_set, PathSetValue):
+            raise TypeError("path_summary requires a path set with graph metadata")
+        return _path_summary(
+            path_set,
+            measure=params.get("measure", "length"),
+            image=image,
+        )
     if op == "edge_lengths":
-        return SequenceValue(_path_edges(args[0]))
+        return SequenceValue(_path_edges(args[0]), _path_segment_locations(args[0]))
     if op == "angles":
-        return SequenceValue(_path_angles(args[0]))
+        return SequenceValue(_path_angles(args[0]), _path_segment_locations(args[0]))
     if op == "delta":
         return SequenceValue(
-            tuple(np.diff(group) for group in _sequence_groups(args[0]))
+            tuple(np.diff(group) for group in _sequence_groups(args[0])),
+            _difference_locations(_sequence_locations(args[0])),
         )
     if op == "delta_angle":
         return SequenceValue(
@@ -511,7 +813,8 @@ def execute_primitive(
                 for differences in (
                     np.diff(group) for group in _sequence_groups(args[0])
                 )
-            )
+            ),
+            _difference_locations(_sequence_locations(args[0])),
         )
     if op == "sign":
         epsilon = _finite_number(params, "epsilon", 0.0)
@@ -519,13 +822,18 @@ def execute_primitive(
             tuple(
                 np.where(np.abs(values) <= epsilon, 0.0, np.sign(values))
                 for values in _sequence_groups(args[0])
-            )
+            ),
+            _sequence_locations(args[0]),
         )
     if op == "run_length_encode":
         encoded = []
-        for values in _sequence_groups(args[0]):
+        encoded_locations = []
+        input_locations = _sequence_locations(args[0])
+        for group_index, values in enumerate(_sequence_groups(args[0])):
             if values.size == 0:
                 encoded.append(np.empty(0, dtype=np.float64))
+                if input_locations:
+                    encoded_locations.append(np.empty((0, 2), dtype=np.float64))
                 continue
             boundaries = np.r_[
                 0, np.flatnonzero(values[1:] != values[:-1]) + 1, len(values)
@@ -535,7 +843,19 @@ def execute_primitive(
                 value = float(np.sign(values[start]))
                 runs.append(value * int(end - start))
             encoded.append(np.asarray(runs, dtype=np.float64))
-        return SequenceValue(tuple(encoded))
+            if input_locations:
+                encoded_locations.append(
+                    np.asarray(
+                        [
+                            input_locations[group_index][start:end].mean(axis=0)
+                            for start, end in pairwise(boundaries)
+                        ],
+                        dtype=np.float64,
+                    ).reshape((-1, 2))
+                )
+        return SequenceValue(
+            tuple(encoded), tuple(encoded_locations) if input_locations else ()
+        )
     if op == "histogram":
         values = _flatten_sequence(args[0])
         bins = _integer(params, "bins", 8)
@@ -579,6 +899,61 @@ def execute_primitive(
                 )
                 result.append(numerator / denominator)
         return np.asarray(result, dtype=np.float32)
+    if op == "spatial_condition":
+        groups = _sequence_groups(args[0])
+        locations = _sequence_locations(args[0])
+        regions = _integer(params, "regions", 3)
+        bins = _integer(params, "bins", 8)
+        low = _finite_number(params, "low", -pi)
+        high = _finite_number(params, "high", pi)
+        axis = 0 if params.get("axis", "vertical") == "vertical" else 1
+        image_extent = image.shape[axis]
+        region_values: list[list[NDArray[np.float64]]] = [[] for _ in range(regions)]
+        if not locations:
+            if any(group.size for group in groups):
+                raise ValueError("spatial_condition requires sequence event locations")
+            return np.zeros(regions * bins, dtype=np.float32)
+        if len(groups) != len(locations):
+            raise ValueError("spatial_condition value and location groups differ")
+        for values, points in zip(groups, locations, strict=True):
+            if len(values) != len(points):
+                raise ValueError(
+                    "spatial_condition values and locations are misaligned"
+                )
+            normalized = points[:, axis] / max(image_extent - 1, 1)
+            indices = np.minimum((normalized * regions).astype(np.int64), regions - 1)
+            for region in range(regions):
+                selected = values[indices == region]
+                if selected.size:
+                    region_values[region].append(selected)
+        features = []
+        for selected_groups in region_values:
+            selected = (
+                np.concatenate(selected_groups)
+                if selected_groups
+                else np.empty(0, dtype=np.float64)
+            )
+            counts, _ = np.histogram(selected, bins=bins, range=(low, high))
+            total = int(counts.sum())
+            features.extend(counts / total if total else counts)
+        return np.asarray(features, dtype=np.float32)
+    if op == "cross_histogram":
+        left, right = _cross_histogram_pairs(args[0], args[1])
+        bins_x = _integer(params, "bins_x", 6)
+        bins_y = _integer(params, "bins_y", 6)
+        ranges = (
+            (
+                _finite_number(params, "low_x", 0.0),
+                _finite_number(params, "high_x", 1.0),
+            ),
+            (
+                _finite_number(params, "low_y", 0.0),
+                _finite_number(params, "high_y", 1.0),
+            ),
+        )
+        counts, _, _ = np.histogram2d(left, right, bins=(bins_x, bins_y), range=ranges)
+        total = float(counts.sum())
+        return (counts.ravel() / total if total else counts.ravel()).astype(np.float32)
     if op == "normalize":
         values = np.asarray(args[0], dtype=np.float64)
         magnitude = float(np.abs(values).sum())
@@ -599,6 +974,14 @@ def execute_primitive(
             denominator,
         )
         return (numerator / safe).astype(np.float32)
+    if op == "pairwise_difference":
+        left = np.asarray(args[0], dtype=np.float64)
+        right = np.asarray(args[1], dtype=np.float64)
+        if left.shape != right.shape:
+            raise ValueError(
+                "pairwise_difference inputs must have equal runtime widths"
+            )
+        return (left - right).astype(np.float32)
     if op == "count":
         value = args[0]
         if isinstance(value, nx.Graph):

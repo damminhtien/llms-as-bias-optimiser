@@ -33,10 +33,41 @@ def generate_seed_programs(
         else (128 if track is SearchTrack.DISCOVERY else 1024)
     )
     compiler = ProgramCompiler(
-        ProgramConstraints(track=track, max_feature_dim=dimension_limit)
+        ProgramConstraints(
+            track=track,
+            max_feature_dim=dimension_limit,
+            forbid_raw_pixels=track is SearchTrack.AUGMENTATION,
+            require_vector_root=track is SearchTrack.AUGMENTATION,
+        )
     )
     image = _node("image")
     pool: list[tuple[Expr, str]] = []
+    ordered_seed_pool: list[tuple[Expr, str]] = []
+
+    seed_skeleton = _node("skeletonize", image)
+    seed_graph = _node("graph", seed_skeleton)
+    seed_paths = _node("paths", seed_graph)
+    seed_turns = _node("delta_angle", _node("angles", seed_paths))
+    ordered_seed_pool.append(
+        (
+            _node("autocorrelation", seed_turns, lags=[1, 2, 4]),
+            "Turn autocorrelation tests whether neighboring curvature changes persist along a path.",
+        )
+    )
+    degree_sequence = _node("degree_sequence", seed_graph)
+    degree_runs = _node("run_length_encode", degree_sequence)
+    ordered_seed_pool.extend(
+        (
+            (
+                _node("histogram", degree_runs, bins=6, low=-8, high=8),
+                "Graph-degree run lengths test whether local branching states persist in traversal order.",
+            ),
+            (
+                _node("moments", degree_runs, orders=[1, 2, 3]),
+                "Moments of graph-degree run lengths test higher-order persistence in the ordered graph trace.",
+            ),
+        )
+    )
 
     for threshold in (0.3, 0.4, 0.5, 0.6, 0.7):
         binary = _node("threshold", image, value=threshold)
@@ -117,23 +148,11 @@ def generate_seed_programs(
             )
         )
 
-    if track is SearchTrack.AUGMENTATION:
-        pixels = _node("flatten_pixels", image)
-        for rows, cols in ((1, 3), (2, 2), (2, 3), (3, 3)):
-            spatial = _node("spatial_split", image, rows=rows, cols=cols)
-            pool.append(
-                (
-                    _node("concat", pixels, spatial),
-                    "Raw pixels augmented with a coarse spatial prior provide an augmentation control.",
-                )
-            )
-        pool.append((pixels, "Raw pixels are the direct augmentation-track control."))
-
     rng = random.Random(seed)
     rng.shuffle(pool)
     selected: list[tuple[Expr, str]] = []
     seen: set[str] = set()
-    for expr, mechanism in pool:
+    for expr, mechanism in (*ordered_seed_pool, *pool):
         signature = expr.to_json()
         if signature in seen:
             continue
@@ -164,3 +183,132 @@ def generate_seed_programs(
         )
         for index, (expr, mechanism) in enumerate(selected)
     )
+
+
+def generate_v3_pilot_seed_programs() -> tuple[ProgramBiasSpec, ...]:
+    """Return ten explicit pilot programs spanning V3 mechanisms and controls."""
+    image = _node("image")
+    skeleton = _node("skeletonize", image)
+    graph = _node("graph", skeleton)
+    paths = _node("paths", graph)
+    angles = _node("angles", paths)
+    turns = _node("delta_angle", angles)
+    degree = _node("degree_sequence", graph)
+    degree_runs = _node("run_length_encode", degree)
+
+    programs = (
+        (
+            _node("autocorrelation", turns, lags=[1, 2, 4]),
+            "Turn autocorrelation tests whether adjacent curvature changes persist along paths.",
+        ),
+        (
+            _node("histogram", degree_runs, bins=6, low=-8, high=8),
+            "Graph-degree run lengths test whether branching states persist in traversal order.",
+        ),
+        (
+            _node("moments", degree_runs, orders=[1, 2, 3]),
+            "Moments of graph-degree runs summarize ordered branch persistence.",
+        ),
+        (
+            _node(
+                "spatial_condition",
+                turns,
+                axis="vertical",
+                regions=3,
+                bins=8,
+                low=-3.141593,
+                high=3.141593,
+            ),
+            "Turn changes conditioned on vertical region test curvature-by-height structure.",
+        ),
+        (
+            _node(
+                "spatial_condition",
+                angles,
+                axis="vertical",
+                regions=3,
+                bins=8,
+                low=-3.141593,
+                high=3.141593,
+            ),
+            "Stroke orientation conditioned on vertical region tests location-specific geometry.",
+        ),
+        (
+            _node(
+                "cross_histogram",
+                _node("path_summary", paths, measure="is_loop"),
+                _node("path_summary", paths, measure="centroid_y"),
+                bins_x=2,
+                bins_y=4,
+                low_x=0,
+                high_x=1,
+                low_y=0,
+                high_y=1,
+            ),
+            "Loop presence paired with centroid height tests loop-position interaction.",
+        ),
+        (
+            _node(
+                "cross_histogram",
+                _node("path_summary", paths, measure="branch_endpoints"),
+                _node("path_summary", paths, measure="centroid_y"),
+                bins_x=3,
+                bins_y=4,
+                low_x=0,
+                high_x=2,
+                low_y=0,
+                high_y=1,
+            ),
+            "Branch endpoint counts paired with centroid height test branch-location interaction.",
+        ),
+        (
+            _node(
+                "histogram",
+                _node("path_summary", paths, measure="branch_endpoints"),
+                bins=4,
+                low=0,
+                high=2,
+            ),
+            "The branch endpoint distribution provides a graph-structure control.",
+        ),
+        (
+            _node("cycle_rank", graph),
+            "Cycle rank provides a compact topological control.",
+        ),
+        (
+            _node(
+                "histogram",
+                _node("edge_lengths", paths),
+                bins=8,
+                low=0,
+                high=2,
+            ),
+            "Edge-length frequencies provide a global path-geometry control.",
+        ),
+    )
+
+    compiler = ProgramCompiler(
+        ProgramConstraints(
+            track=SearchTrack.DISCOVERY,
+            max_feature_dim=128,
+        )
+    )
+    seen: set[str] = set()
+    seeds: list[ProgramBiasSpec] = []
+    for index, (program, mechanism) in enumerate(programs):
+        compiler.compile(program)
+        signature = program.to_json()
+        if signature in seen:
+            raise ValueError("V3 pilot seed programs must be structurally distinct")
+        seen.add(signature)
+        seeds.append(
+            ProgramBiasSpec(
+                name=f"v3_pilot_seed_{index + 1:02d}",
+                hypothesis="A compact relational or structural signal may support few-shot digit recognition.",
+                mechanism=mechanism,
+                program=program,
+                prediction="The representation should improve validation prediction or transfer beyond a matched compact control.",
+                falsification="Reject it if a mechanism-specific intervention leaves its predictive behavior unchanged.",
+            )
+        )
+    return tuple(seeds)

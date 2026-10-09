@@ -65,6 +65,23 @@ def test_evaluator_runs_500_and_5000_training_sizes_and_caches_features(
     assert len(list(tmp_path.rglob("*.npy"))) == 3
 
 
+def test_evaluator_screens_with_500_examples_without_computing_5000(tmp_path) -> None:
+    evaluator = Evaluator(
+        search_data=_search_data(),
+        feature_cache=FeatureCache(tmp_path),
+    )
+
+    result = evaluator.evaluate(_raw_pixels_bias(), train_sizes=(500,))
+
+    assert result.accuracy_500 == pytest.approx(1)
+    assert result.accuracy_5000 is None
+    assert result.confusion_matrix.sum() == 100
+    assert len(list(tmp_path.rglob("*.npy"))) == 2
+
+    with pytest.raises(ValueError, match="train_sizes"):
+        evaluator.evaluate(_raw_pixels_bias(), train_sizes=(5_000,))
+
+
 def test_evaluator_has_no_test_data_in_its_search_split(tmp_path) -> None:
     search_data = _search_data()
     evaluator = Evaluator(
@@ -112,6 +129,21 @@ def test_evaluation_ranking_score_uses_accuracy_dimension_and_runtime() -> None:
     assert result.ranking_score == pytest.approx(expected)
     assert result.runtime_ms == 35
     assert not result.confusion_matrix.flags.writeable
+
+
+def test_screening_ranking_uses_500_sample_accuracy_only() -> None:
+    result = Evaluation(
+        accuracy_500=0.8,
+        accuracy_5000=None,
+        feature_dim=784,
+        feature_runtime_ms=10,
+        training_runtime_ms=20,
+        inference_runtime_ms=5,
+        confusion_matrix=np.zeros((10, 10), dtype=np.int64),
+    )
+    expected = 0.8 - 0.001 * np.log1p(784) - 0.0001 * np.log1p(35)
+
+    assert result.ranking_score == pytest.approx(expected)
 
 
 def test_evaluation_rejects_invalid_metrics_and_confusion_shape() -> None:

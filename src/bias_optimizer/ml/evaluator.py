@@ -20,12 +20,20 @@ from bias_optimizer.domain.bias import BiasSpec, bias_spec_hash
 from bias_optimizer.domain.evaluation import Evaluation, ModelEvaluation
 from bias_optimizer.domain.program import ProgramBiasSpec, program_bias_hash
 from bias_optimizer.dsl.compiler import ProgramCompiler
+from bias_optimizer.dsl.mutations import add_raw_pixel_anchor
+from bias_optimizer.dsl.validator import ProgramConstraints, SearchTrack
 from bias_optimizer.features.base import CompiledRepresentation
 from bias_optimizer.features.pipeline import BatchFeatureExtractor
 from bias_optimizer.ml.learner import Learner, LearnerConfig
 
 _DIGIT_LABELS = np.arange(10, dtype=np.int64)
 _TRAIN_SIZES = (500, 5_000)
+
+
+def _validate_train_sizes(train_sizes: tuple[int, ...]) -> tuple[int, ...]:
+    if not isinstance(train_sizes, tuple) or train_sizes not in ((500,), _TRAIN_SIZES):
+        raise ValueError("train_sizes must be (500,) or (500, 5000)")
+    return train_sizes
 
 
 class Evaluator:
@@ -64,8 +72,13 @@ class Evaluator:
         cache = self._feature_extractor.subexpression_cache
         return cache.metrics if cache is not None else {}
 
-    def evaluate(self, bias: BiasSpec) -> Evaluation:
-        """Compile and score a bias with two fixed train sizes on validation data."""
+    def evaluate(
+        self,
+        bias: BiasSpec,
+        *,
+        train_sizes: tuple[int, ...] = _TRAIN_SIZES,
+    ) -> Evaluation:
+        """Compile and score a bias on validation data at selected train sizes."""
         if not isinstance(bias, BiasSpec):
             raise TypeError("Evaluator.evaluate requires a BiasSpec")
         pipeline = self._compiler.compile(bias)
@@ -73,6 +86,7 @@ class Evaluator:
             pipeline,
             cache_key=bias_spec_hash(bias),
             cache_namespace="mnist_v1",
+            train_sizes=train_sizes,
         )
 
     def evaluate_pipeline(
@@ -81,6 +95,7 @@ class Evaluator:
         *,
         cache_key: str,
         cache_namespace: str,
+        train_sizes: tuple[int, ...] = _TRAIN_SIZES,
     ) -> Evaluation:
         """Evaluate any fixed-width compiled representation on search splits only."""
         if not callable(getattr(pipeline, "transform", None)):
@@ -89,10 +104,11 @@ class Evaluator:
             raise TypeError("pipeline must declare an integer feature_dim")
         if not cache_key or not cache_namespace:
             raise ValueError("cache_key and cache_namespace must be non-empty")
+        selected_train_sizes = _validate_train_sizes(train_sizes)
         data = self._get_search_data()
         train_sets = {
             size: data.sample_training_data(size, seed=self._learner_config.seed)
-            for size in _TRAIN_SIZES
+            for size in selected_train_sizes
         }
 
         feature_start = perf_counter()
@@ -129,7 +145,9 @@ class Evaluator:
 
         return Evaluation(
             accuracy_500=evaluations[500].accuracy,
-            accuracy_5000=evaluations[5_000].accuracy,
+            accuracy_5000=(
+                evaluations[5_000].accuracy if 5_000 in evaluations else None
+            ),
             feature_dim=pipeline.feature_dim,
             feature_runtime_ms=feature_runtime_ms,
             training_runtime_ms=sum(
@@ -138,7 +156,7 @@ class Evaluator:
             inference_runtime_ms=sum(
                 result.inference_time_ms for result in evaluations.values()
             ),
-            confusion_matrix=evaluations[5_000].confusion_matrix,
+            confusion_matrix=evaluations.get(5_000, evaluations[500]).confusion_matrix,
         )
 
     def evaluate_features(
@@ -191,20 +209,43 @@ class ProgramEvaluator:
         evaluator: Evaluator | None = None,
         *,
         compiler: ProgramCompiler | None = None,
+        raw_pixel_anchor: bool = False,
+        train_sizes: tuple[int, ...] = _TRAIN_SIZES,
     ) -> None:
         self._evaluator = evaluator if evaluator is not None else Evaluator()
         self._compiler = compiler if compiler is not None else ProgramCompiler()
+        if type(raw_pixel_anchor) is not bool:
+            raise TypeError("raw_pixel_anchor must be a boolean")
+        if (
+            raw_pixel_anchor
+            and self._compiler.constraints.track is not SearchTrack.AUGMENTATION
+        ):
+            raise ValueError("raw-pixel anchoring is available only on augmentation")
+        self._raw_pixel_anchor = raw_pixel_anchor
+        self._train_sizes = _validate_train_sizes(train_sizes)
 
     def evaluate(self, bias: ProgramBiasSpec) -> Evaluation:
         if not isinstance(bias, ProgramBiasSpec):
             raise TypeError("ProgramEvaluator.evaluate requires a ProgramBiasSpec")
         pipeline = self._compiler.compile(bias.program)
+        if self._raw_pixel_anchor:
+            anchored = add_raw_pixel_anchor(bias.program)
+            pipeline = ProgramCompiler(
+                ProgramConstraints(
+                    track=SearchTrack.AUGMENTATION,
+                    max_feature_dim=1_024,
+                    max_depth=7,
+                    max_nodes=130,
+                )
+            ).compile(anchored)
+        evaluation_args = {
+            "cache_key": program_bias_hash(bias),
+            "cache_namespace": f"mnist_v3_{self._compiler.constraints.track.value}_program",
+        }
+        if self._train_sizes == _TRAIN_SIZES:
+            return self._evaluator.evaluate_pipeline(pipeline, **evaluation_args)
         return self._evaluator.evaluate_pipeline(
-            pipeline,
-            cache_key=program_bias_hash(bias),
-            cache_namespace=(
-                f"mnist_v2_{self._compiler.constraints.track.value}_program"
-            ),
+            pipeline, **evaluation_args, train_sizes=self._train_sizes
         )
 
     @property
