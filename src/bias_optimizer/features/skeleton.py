@@ -6,8 +6,8 @@ import numpy as np
 from numpy.typing import NDArray
 from skimage.morphology import skeletonize
 
-from bias_optimizer.features.base import Image
 from bias_optimizer.features._image import validated_image
+from bias_optimizer.features.base import Image
 
 
 def skeletonize_image(image: Image, threshold: float = 0.5) -> NDArray[np.bool_]:

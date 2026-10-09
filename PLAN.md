@@ -64,24 +64,24 @@
   - [x] `SymmetryOperator`
   - [x] Unit-test each operator independently
 
-- [ ] **5. Implement handwriting-dynamics operators**
-  - [ ] Convert skeleton into graph \(G=(V,E)\)
-  - [ ] Detect endpoints and junctions
-  - [ ] Extract graph paths
-  - [ ] Implement local stroke direction
+- [x] **5. Implement handwriting-dynamics operators**
+  - [x] Convert skeleton into graph \(G=(V,E)\)
+  - [x] Detect endpoints and junctions
+  - [x] Extract graph paths
+  - [x] Implement local stroke direction
     \[
     \theta_t=\operatorname{atan2}(\Delta y,\Delta x)
     \]
-  - [ ] Quantize directions into 8 bins
-  - [ ] `StrokeDirectionOperator`
-  - [ ] Implement curvature
+  - [x] Quantize directions into 8 bins
+  - [x] `StrokeDirectionOperator`
+  - [x] Implement curvature
     \[
     \Delta\theta_t=\theta_{t+1}-\theta_t
     \]
-  - [ ] `CurvatureOperator`
-  - [ ] Implement direction-transition matrix
-  - [ ] Optionally infer \(K=3\) plausible trajectories rather than one
-  - [ ] Test on manually selected digits `0, 1, 6, 8, 9`
+  - [x] `CurvatureOperator`
+  - [x] Implement direction-transition matrix
+  - [x] Resolve optional trajectory inference: use orientation-neutral path features instead of assigning pen order
+  - [x] Test on manually selected digits `0, 1, 6, 8, 9`
 
 - [ ] **6. Define the bias domain model**
   - [ ] Implement `OperatorSpec`

@@ -11,7 +11,6 @@ from bias_optimizer.features._image import validated_image
 from bias_optimizer.features.base import FeatureVector, Image
 
 
-
 @dataclass(frozen=True, slots=True)
 class RawPixelsOperator:
     """Use all normalized grayscale pixels as the feature vector."""
