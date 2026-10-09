@@ -121,18 +121,18 @@
   - [x] Batch-transform images
   - [x] Cache feature matrices by bias hash
 
-- [ ] **9. Implement `BiasCompiler`**
-  - [ ] Input:
+- [x] **9. Implement `BiasCompiler`**
+  - [x] Input:
     ```text
     BiasSpec
     ```
-  - [ ] Output:
+  - [x] Output:
     ```text
     FeaturePipeline
     ```
-  - [ ] Compile operator specs through registry
-  - [ ] Reject invalid bias specifications cleanly
-  - [ ] Ensure LLM never directly edits evaluator/classifier code
+  - [x] Compile operator specs through registry
+  - [x] Reject invalid bias specifications cleanly
+  - [x] Ensure LLM never directly edits evaluator/classifier code
 
 - [ ] **10. Implement `Evaluator`**
   - [ ] Input: `BiasSpec`
