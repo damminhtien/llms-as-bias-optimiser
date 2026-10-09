@@ -25,12 +25,63 @@ baseline can still be reproduced and compared without mixing its search history.
 - [x] Compile only allow-listed DSL nodes; never execute generated Python.
 - [x] Add raw-pixel augmentation and a separate discovery track that rejects `flatten_pixels` and caps features at 128 by default.
 - [x] Add deterministic seed-program generation, LLM program proposals, bounded repair, and an independent evaluator/archive path.
+- [x] Constrain Ollama proposals with track-specific typed AST schemas, operation-owned parameter bounds, depth/node limits, and exact proposal counts.
+- [x] Number refill prompts and sampling seeds from the durable response archive; continue after failed or duplicate-only batches.
 - [x] Add structural AST novelty and a MAP-Elites archive indexed by primitive family and complexity.
 - [x] Persist V2 candidates and raw proposal exchanges in separate JSONL files.
 - [x] Add `experiments/search_programs.py` as the V2 entry point.
-- [ ] Run the planned 20-seed + 10-generation search on both tracks and report results; this is an experiment, not evidence already obtained by the implementation work.
-- [ ] After the core search is characterized, add transfer evaluation, counterfactual interventions, and invariance-program search.
-- [ ] Add sub-expression caching across candidates after profiling the first V2 run.
+- [x] Add a checksum-verified freeze manifest for raw-free MNIST-validation finalists.
+- [x] Add validation-only raw-pixel baseline and raw-pixel-plus-frozen-program controls.
+- [x] Add reproducible transfer loaders for EMNIST Digits/Letters, KMNIST, and Fashion-MNIST.
+- [x] Add a bounded sequence-shuffle counterfactual over typed sequence values.
+- [x] Add a typed image-transformation DSL, LLM proposal boundary, and orbit-mean pooling.
+- [x] Add a 256 MiB LRU cache for reusable AST subexpressions across candidates.
+- [x] Add `experiments/summarize_v2.py` to rebuild a provenance-linked V2 report from local artifacts.
+- [x] Run the planned 20-seed + 10-generation search on both tracks and report results.
+- [x] Freeze five finalists from the raw-free discovery track before evaluating transfer-test samples.
+- [x] Run sequence-shuffle counterfactuals on the frozen MNIST finalists and report the null order-dependence result.
+- [x] Run LLM-guided invariance search on train/validation data and evaluate orbit pooling without loading MNIST test data.
+- [x] Profile cross-candidate caching against uncached transforms, check exact feature equality, and report measured hit rate, memory, and speedup.
+- [x] Write the V2 research report, separating validation search, held-out transfer, mechanism falsification, and smoke/profile evidence.
+
+## V2 run results
+
+The 2026-10-09 run completed 200 candidates per track (20 seeds plus 10 × 18
+generation records). Search details, archived proposal counts, finalist IDs,
+source checksums, and all reported metrics are in
+[`reports/V2_PROGRAM_SYNTHESIS.md`](reports/V2_PROGRAM_SYNTHESIS.md). The raw-free
+track's top program, `cycle_angle_hist`, scored 0.7180 validation accuracy at
+500 examples; the augmentation track's top candidate scored 0.6445. Both
+quality-diversity archives occupied only four of their implemented niches, with
+`hybrid` dominant. Geometry, stroke-dynamics, frequency-scale, and compositional
+niches remained empty; raw-pixel candidates also remained absent in the
+augmentation archive. MAP-Elites therefore preserved some cell diversity but
+did not achieve broad niche coverage in this run.
+
+Both tracks evaluated the same 200-candidate budget, but the augmentation run
+switched to batches of at most four after a large structured response was
+truncated. The per-track score maxima are therefore descriptive and should not
+be treated as a controlled comparison between search tracks.
+
+The frozen transfer finalist `spatial_cycle_hist` reached 0.8120 on the
+2,000-image EMNIST Digits sample, 0.4993 on EMNIST Letters, 0.4538 on KMNIST,
+and 0.7080 on Fashion-MNIST with 5,000 training examples. Its strong Fashion
+score means these results do not establish handwriting-specific transfer.
+Every tested sequence-shuffle intervention left predictions unchanged
+(accuracy delta 0, agreement 1); the finalists provide no evidence that
+sequence order matters. A two-pixel horizontal translation passed the
+validation invariance rule, while orbit-mean pooling reduced the held-out
+validation accuracy by 0.0020. The cache profile preserved exact features and
+measured a 3.14× speedup on a local 16-program, 96-image sample; this is a smoke
+measurement, not a general performance guarantee.
+
+The V2 augmentation archive permits raw pixels but contained no LLM candidate
+using that primitive. A separate validation-only control scored raw pixels at
+0.8170 / 0.8765 for 500 / 5,000 examples. Concatenating the depth-compatible
+`angle_hist_12` finalist with pixels scored 0.8525 / 0.9170 (+0.0355 / +0.0405);
+a fixed raw-plus-spatial control scored 0.8170 / 0.8785. These post-search
+compositions reuse the finalist-selection validation split, so the gains are
+exploratory rather than an independent estimate.
 
 ## V2 search contract
 
@@ -69,19 +120,68 @@ bin)` cell. The deterministic primary-family descriptor uses AST primitive
 families; multi-family programs enter the `hybrid` niche. Tree novelty compares
 program structure and parameters, not explanations or LLM embeddings.
 
+## Post-search evaluation protocol
+
+`experiments/freeze_transfer_candidates.py` selects five candidates using only
+MNIST validation accuracy at 500 training examples, with the recorded ranking
+score and candidate hash as deterministic tie-breakers. The manifest stores the
+full ASTs and SHA-256 of the discovery archive before any official test partition
+is loaded. Transfer evaluation verifies both before loading another dataset.
+
+`experiments/evaluate_pixel_augmentations.py` compares raw pixels with the
+depth-compatible frozen finalist concatenated to pixels, plus a fixed spatial
+control. It uses MNIST train/validation only; these post-search compositions
+are not new LLM proposals and share the finalist-selection validation split.
+
+The reusable loader validates IDX magic values, image dimensions, row counts,
+label ranges, and source checksums. It supports NIST EMNIST Digits and Letters,
+the CODH KMNIST files (with a checksummed OpenML mirror fallback), and the
+Fashion-MNIST publisher files. EMNIST labels are mapped to zero-based classes;
+the published EMNIST axis orientation is corrected by transposing image axes.
+Transfer uses 500 and 5,000 training examples, three fixed train seeds, and a
+seeded stratified sample of 2,000 held-out test images per domain. The learner is
+refit per domain; the discovered representation AST is frozen. Fashion-MNIST is
+the negative-control domain. Results identify the exact source split and
+checksum, so the OpenML KMNIST fallback is never described as the publisher's
+official test partition.
+
+`experiments/evaluate_counterfactuals.py` fits the frozen candidate on 5,000
+MNIST training images, then shuffles values within each path sequence at a
+selected sequence-valued AST node on a stratified official-test sample. This
+preserves each sequence's multiset while destroying order; downstream features
+are recomputed. The report includes accuracy change and prediction agreement
+for three deterministic shuffles. It tests sequence mechanisms that cannot be
+identified by feature ablation alone.
+
+The invariance DSL composes up to four bounded `translate`, `rotate`, `dilate`,
+`erode`, `shear`, and `elastic` image primitives. LLM proposals state a label-
+preservation hypothesis and falsifier. `experiments/search_invariances.py`
+measures label accuracy, model agreement, and image change on the MNIST
+train/validation protocol; it has no test-set loader. A candidate that passes a
+predeclared validation rule can be converted to an `OrbitPooledPipeline`, which
+averages the frozen representation over identity and transformed views.
+
+The shared subexpression cache is memory-only, scoped by an exact split key,
+sample index, and canonical AST JSON. It keeps expensive skeleton, graph, path,
+and sequence intermediates under a configurable byte bound (256 MiB by default)
+and exposes hits, misses, evictions, and occupancy. The standalone profile
+compares exact feature matrices and local wall time against the uncached path.
+
 ## V2 MVP run
 
 ```sh
 export OLLAMA_MODEL=qwen3.5:35b-mlx
 python experiments/search_programs.py --track discovery \
-  --generations 10 --candidates-per-generation 18 --seed-count 20
+  --generations 10 --candidates-per-generation 18 --seed-count 20 --proposal-rounds 36
 python experiments/search_programs.py --track augmentation \
-  --generations 10 --candidates-per-generation 18 --seed-count 20
+  --generations 10 --candidates-per-generation 18 --seed-count 20 --proposal-rounds 36
 ```
 
 Each track writes an independent candidate archive and LLM-response archive.
-The search is resumable from its JSONL candidate archive. The experiment should
-be reported by track and niche; do not pool the two tracks into one leaderboard.
+LLM calls propose at most four ASTs at a time; up to 36 refill batches per
+generation are allowed, which reduces response truncation and makes the search
+resumable from its JSONL candidate archive. Report tracks separately; do not
+pool them into one leaderboard.
 
 ## V1 baseline plan (frozen historical record)
 

@@ -56,6 +56,13 @@ class JsonlResponseArchive:
     def __post_init__(self) -> None:
         object.__setattr__(self, "path", Path(self.path))
 
+    def record_count(self) -> int:
+        """Return the number of durable request records already in the archive."""
+        if not self.path.exists():
+            return 0
+        with self.path.open(encoding="utf-8") as archive:
+            return sum(1 for line in archive if line.strip())
+
     def record(self, response: LLMResponseRecord) -> None:
         if not isinstance(response, LLMResponseRecord):
             raise TypeError("response archive requires an LLMResponseRecord")

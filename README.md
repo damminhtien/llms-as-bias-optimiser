@@ -53,11 +53,34 @@ python experiments/search_programs.py --track augmentation
 ```
 
 The defaults evaluate 20 deterministic seed programs, then request 18 proposals
-for each of 10 generations. Discovery rejects raw pixels and caps the feature
+for each of 10 generations, using batches of at most four ASTs and up to 36
+refill batches per generation. Discovery rejects raw pixels and caps the feature
 width at 128; augmentation allows raw pixels and uses a 1,024-feature cap. Each
 track has its own candidate and LLM-response JSONL archives. See
 [`PLAN.md`](PLAN.md) and [`ARCHITECTURE.md`](ARCHITECTURE.md) for the V2 scope
-and deferred transfer and counterfactual stages.
+and post-search evaluation protocol.
+
+After both search tracks finish, freeze the raw-free discovery finalists before
+loading external test partitions. The follow-on commands evaluate transfer,
+sequence counterfactuals, LLM-proposed invariances, orbit pooling, and the
+bounded shared-subexpression cache:
+
+```sh
+python experiments/freeze_transfer_candidates.py
+python experiments/evaluate_pixel_augmentations.py
+python experiments/evaluate_transfer.py
+python experiments/evaluate_counterfactuals.py
+python experiments/search_invariances.py
+python experiments/profile_subexpression_cache.py
+python experiments/summarize_v2.py
+```
+
+Transfer uses EMNIST Digits/Letters and KMNIST as handwriting domains, with
+Fashion-MNIST as a negative control. It reports the exact sampled test protocol
+and source checksums. The completed V2 run and its limits are summarized in
+[`reports/V2_PROGRAM_SYNTHESIS.md`](reports/V2_PROGRAM_SYNTHESIS.md); MAP-Elites
+left several niches empty, sequence shuffles did not change finalist predictions,
+and Fashion-MNIST transfer prevents a handwriting-specific claim.
 
 ## Project layout
 
@@ -69,8 +92,9 @@ and deferred transfer and counterfactual stages.
 - `src/bias_optimizer/ml/` — fixed learner and deterministic evaluator.
 - `src/bias_optimizer/llm/` — provider-neutral proposal boundary.
 - `src/bias_optimizer/search/` — V1 controller and V2 program-search engine.
-- `src/bias_optimizer/data/` — reproducible MNIST splits.
-- `src/bias_optimizer/cache/` — feature cache interface.
+- `src/bias_optimizer/data/` — reproducible MNIST splits and transfer loaders.
+- `src/bias_optimizer/invariance/` — bounded transformation programs and orbit pooling.
+- `src/bias_optimizer/cache/` — feature and cross-candidate subexpression caches.
 - `experiments/` — baseline, search, finalist, evaluation, and plot entry points.
 - `reports/` — tracked research conclusions.
 - `tests/` — unit and integration tests.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from math import isfinite
 from urllib.error import HTTPError, URLError
@@ -78,16 +79,75 @@ class OllamaLLMClient:
         return self._last_usage
 
     def generate(self, prompt: str) -> str:
+        return self._generate(prompt, "json", temperature=0.0)
+
+    def generate_structured(
+        self,
+        prompt: str,
+        schema: Mapping[str, object],
+        *,
+        temperature: float = 0.0,
+        seed: int | None = None,
+        timeout_seconds: float | None = None,
+        num_predict: int | None = None,
+    ) -> str:
+        """Generate a response constrained by a JSON Schema object."""
+        if not isinstance(schema, Mapping):
+            raise TypeError("schema must be a JSON Schema object")
+        if (
+            isinstance(temperature, bool)
+            or not isinstance(temperature, (int, float))
+            or not isfinite(temperature)
+            or not 0 <= temperature <= 2
+        ):
+            raise ValueError("temperature must be finite and in [0, 2]")
+        if seed is not None and (type(seed) is not int or seed < 0):
+            raise ValueError("seed must be a non-negative integer")
+        if timeout_seconds is not None and (
+            isinstance(timeout_seconds, bool)
+            or not isinstance(timeout_seconds, (int, float))
+            or not isfinite(timeout_seconds)
+            or timeout_seconds <= 0
+        ):
+            raise ValueError("timeout_seconds must be finite and positive")
+        if num_predict is not None and (
+            type(num_predict) is not int or num_predict <= 0
+        ):
+            raise ValueError("num_predict must be a positive integer")
+        return self._generate(
+            prompt,
+            dict(schema),
+            temperature=float(temperature),
+            seed=seed,
+            timeout_seconds=timeout_seconds,
+            num_predict=num_predict,
+        )
+
+    def _generate(
+        self,
+        prompt: str,
+        format_value: str | dict[str, object],
+        *,
+        temperature: float,
+        seed: int | None = None,
+        timeout_seconds: float | None = None,
+        num_predict: int | None = None,
+    ) -> str:
         if not isinstance(prompt, str) or not prompt.strip():
             raise ValueError("prompt must be a non-empty string")
+        options: dict[str, int | float] = {"temperature": temperature}
+        if seed is not None:
+            options["seed"] = seed
+        if num_predict is not None:
+            options["num_predict"] = num_predict
         payload = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
-            "format": "json",
+            "format": format_value,
             "stream": False,
             "think": False,
             "keep_alive": "10m",
-            "options": {"temperature": 0},
+            "options": options,
         }
         request = Request(
             f"{self.base_url}/api/chat",
@@ -96,7 +156,12 @@ class OllamaLLMClient:
             method="POST",
         )
         try:
-            with urlopen(request, timeout=self.timeout_seconds) as response:
+            with urlopen(
+                request,
+                timeout=(
+                    self.timeout_seconds if timeout_seconds is None else timeout_seconds
+                ),
+            ) as response:
                 raw_response = response.read()
         except HTTPError as exc:
             detail = exc.read(500).decode("utf-8", errors="replace").strip()

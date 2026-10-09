@@ -8,6 +8,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from bias_optimizer.cache.feature_cache import FeatureCache
+from bias_optimizer.cache.subexpression_cache import SubexpressionCache
 from bias_optimizer.features._image import IMAGE_SHAPE, validated_image
 from bias_optimizer.features.base import FeatureOperator, FeatureVector, Image
 
@@ -59,6 +60,7 @@ class BatchFeatureExtractor:
     """Transform image batches and optionally cache matrices by bias and split."""
 
     cache: FeatureCache | None = None
+    subexpression_cache: SubexpressionCache | None = None
 
     def transform(
         self,
@@ -84,8 +86,20 @@ class BatchFeatureExtractor:
                 return cached
 
         matrix = np.empty((len(batch), pipeline.feature_dim), dtype=np.float32)
+        transform_with_cache = getattr(pipeline, "transform_with_cache", None)
         for index, image in enumerate(batch):
-            matrix[index] = pipeline.transform(image)
+            if self.subexpression_cache is not None and callable(transform_with_cache):
+                if dataset_key is None:
+                    raise ValueError(
+                        "cross-candidate caching requires an exact dataset_key"
+                    )
+                matrix[index] = transform_with_cache(
+                    image,
+                    cache=self.subexpression_cache,
+                    sample_key=f"{dataset_key}:{index}",
+                )
+            else:
+                matrix[index] = pipeline.transform(image)
         if self.cache is not None:
             self.cache.set(bias_hash, dataset_key, matrix)
         return matrix

@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 
+from bias_optimizer.cache.subexpression_cache import SubexpressionCache
 from bias_optimizer.dsl.ast import Expr
 from bias_optimizer.dsl.primitives import execute_primitive
 from bias_optimizer.dsl.types import ValueType
@@ -27,19 +28,85 @@ class ProgramPipeline:
     feature_dim: int
 
     def transform(self, image: Image) -> FeatureVector:
+        return self._transform(image)
+
+    def transform_with_cache(
+        self,
+        image: Image,
+        *,
+        cache: SubexpressionCache,
+        sample_key: str,
+    ) -> FeatureVector:
+        """Transform one row and reuse expensive identical subtrees across ASTs."""
+        if not isinstance(cache, SubexpressionCache):
+            raise TypeError("cache must be a SubexpressionCache")
+        if not isinstance(sample_key, str) or not sample_key:
+            raise ValueError("sample_key must be a non-empty string")
+        return self._transform(image, shared_cache=cache, sample_key=sample_key)
+
+    def transform_with_sequence_shuffle(
+        self,
+        image: Image,
+        *,
+        target_op: str,
+        seed: int,
+    ) -> FeatureVector:
+        """Destroy sequence order at a typed sequence node, preserving each multiset."""
+        if not isinstance(target_op, str) or not target_op:
+            raise ValueError("target_op must be a non-empty primitive name")
+        if type(seed) is not int or seed < 0:
+            raise ValueError("seed must be a non-negative integer")
+        return self._transform(
+            image,
+            shuffle_sequence_at=target_op,
+            shuffle_seed=seed,
+        )
+
+    def _transform(
+        self,
+        image: Image,
+        *,
+        shared_cache: SubexpressionCache | None = None,
+        sample_key: str | None = None,
+        shuffle_sequence_at: str | None = None,
+        shuffle_seed: int = 0,
+    ) -> FeatureVector:
         validated = validated_image(image)
         cache: dict[str, Any] = {}
+        rng = np.random.default_rng(shuffle_seed)
 
         def evaluate(node: Expr) -> Any:
             key = node.to_json()
             if key not in cache:
-                args = tuple(evaluate(child) for child in node.args)
-                cache[key] = execute_primitive(
-                    node.op,
-                    args,
-                    node.parameter_values,
-                    validated,
-                )
+                value = None
+                if shared_cache is not None and sample_key is not None:
+                    value = shared_cache.get(sample_key, key, operation=node.op)
+                if value is None:
+                    args = tuple(evaluate(child) for child in node.args)
+                    value = execute_primitive(
+                        node.op,
+                        args,
+                        node.parameter_values,
+                        validated,
+                    )
+                    if node.op == shuffle_sequence_at:
+                        from bias_optimizer.dsl.primitives import SequenceValue
+
+                        if not isinstance(value, SequenceValue):
+                            raise TypeError(
+                                f"{node.op} did not produce an ordered sequence"
+                            )
+                        value = SequenceValue(
+                            tuple(rng.permutation(group) for group in value.groups)
+                        )
+                    if shared_cache is not None and sample_key is not None:
+                        shared_cache.set(
+                            sample_key,
+                            key,
+                            value,
+                            operation=node.op,
+                        )
+                cache[key] = value
             return cache[key]
 
         value = evaluate(self.program)

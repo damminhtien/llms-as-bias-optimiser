@@ -11,6 +11,7 @@ from bias_optimizer.dsl.compiler import ProgramCompiler
 from bias_optimizer.dsl.seeds import generate_seed_programs
 from bias_optimizer.dsl.validator import ProgramConstraints, SearchTrack
 from bias_optimizer.llm.program_proposer import (
+    ProgramProposalError,
     ProgramProposer,
     ProgramSearchContext,
     ProposedProgram,
@@ -20,8 +21,8 @@ from bias_optimizer.novelty.descriptors import IMPLEMENTED_NICHES, describe_prog
 from bias_optimizer.novelty.map_elites import MapElitesArchive
 from bias_optimizer.novelty.tree_distance import structural_novelty
 
-_MAX_PROPOSAL_ROUNDS = 5
 _ELITE_PARENTS = 5
+_PROPOSAL_BATCH_SIZE = 4
 
 
 class _ProgramEvaluator(Protocol):
@@ -52,6 +53,8 @@ class ProgramSearchEngine:
         seed_programs: Iterable[ProgramBiasSpec] | None = None,
         seed_count: int = 20,
         seed: int = 42,
+        max_proposal_rounds: int = 5,
+        require_complete: bool = False,
     ) -> None:
         self.track = SearchTrack(track)
         self.max_feature_dim = (
@@ -71,6 +74,12 @@ class ProgramSearchEngine:
         )
         self._proposer = proposer if proposer is not None else ProgramProposer()
         self._archive = archive if archive is not None else MapElitesArchive()
+        if type(max_proposal_rounds) is not int or max_proposal_rounds <= 0:
+            raise ValueError("max_proposal_rounds must be positive")
+        if type(require_complete) is not bool:
+            raise TypeError("require_complete must be a boolean")
+        self._max_proposal_rounds = max_proposal_rounds
+        self._require_complete = require_complete
         if any(record.track != self.track.value for record in self._archive.records):
             raise ValueError("archive contains records from a different search track")
         if seed_programs is None:
@@ -109,6 +118,26 @@ class ProgramSearchEngine:
             remaining = candidates_per_generation - existing
             if remaining > 0:
                 self._run_generation(generation, remaining)
+        if self._require_complete:
+            underfilled = {
+                generation: sum(
+                    record.generation == generation for record in self._archive.records
+                )
+                for generation in range(1, generations + 1)
+            }
+            underfilled = {
+                generation: count
+                for generation, count in underfilled.items()
+                if count < candidates_per_generation
+            }
+            if underfilled:
+                detail = ", ".join(
+                    f"generation {generation}: {count}/{candidates_per_generation}"
+                    for generation, count in underfilled.items()
+                )
+                raise RuntimeError(
+                    "search archive is incomplete and can be resumed: " + detail
+                )
         return self._archive
 
     def _evaluate_seeds(self) -> None:
@@ -123,7 +152,7 @@ class ProgramSearchEngine:
 
     def _run_generation(self, generation: int, target_count: int) -> None:
         accepted = 0
-        for _ in range(_MAX_PROPOSAL_ROUNDS):
+        for _ in range(self._max_proposal_rounds):
             remaining = target_count - accepted
             if remaining <= 0:
                 break
@@ -140,16 +169,20 @@ class ProgramSearchEngine:
                 top_candidates=parents,
                 underexplored_niches=self._archive.underexplored_niches(target_niches),
                 explored_programs=tuple(
-                    record.bias.program.to_json()
-                    for record in self._archive.records[-20:]
+                    record.bias.program.to_json() for record in self._archive.records
                 ),
             )
             previous_biases = tuple(record.bias for record in self._archive.records)
-            proposals = self._proposer.propose(
-                context,
-                previous_biases=previous_biases,
-                count=remaining,
-            )
+            try:
+                proposals = self._proposer.propose(
+                    context,
+                    previous_biases=previous_biases,
+                    count=min(remaining, _PROPOSAL_BATCH_SIZE),
+                )
+            except ProgramProposalError:
+                # The raw failed attempts are durable; try another batch with a
+                # distinct archive-derived proposal index before giving up.
+                continue
             if not proposals:
                 continue
             added_before = len(self._archive.records)

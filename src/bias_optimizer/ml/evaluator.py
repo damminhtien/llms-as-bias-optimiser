@@ -9,6 +9,7 @@ from numpy.typing import NDArray
 from sklearn.metrics import accuracy_score, confusion_matrix
 
 from bias_optimizer.cache.feature_cache import FeatureCache
+from bias_optimizer.cache.subexpression_cache import SubexpressionCache
 from bias_optimizer.compiler.bias_compiler import BiasCompiler
 from bias_optimizer.data.mnist import (
     MNISTDataConfig,
@@ -37,6 +38,7 @@ class Evaluator:
         data_config: MNISTDataConfig | None = None,
         search_data: MNISTSearchData | None = None,
         feature_cache: FeatureCache | None = None,
+        subexpression_cache: SubexpressionCache | None = None,
         compiler: BiasCompiler | None = None,
     ) -> None:
         self._learner_config = (
@@ -48,8 +50,19 @@ class Evaluator:
         self._search_data = search_data
         self._compiler = compiler if compiler is not None else BiasCompiler()
         self._feature_extractor = BatchFeatureExtractor(
-            feature_cache if feature_cache is not None else FeatureCache()
+            feature_cache if feature_cache is not None else FeatureCache(),
+            subexpression_cache=(
+                subexpression_cache
+                if subexpression_cache is not None
+                else SubexpressionCache()
+            ),
         )
+
+    @property
+    def subexpression_cache_metrics(self) -> dict[str, int | float]:
+        """Expose bounded shared-cache counters for run-level reports."""
+        cache = self._feature_extractor.subexpression_cache
+        return cache.metrics if cache is not None else {}
 
     def evaluate(self, bias: BiasSpec) -> Evaluation:
         """Compile and score a bias with two fixed train sizes on validation data."""
@@ -193,3 +206,7 @@ class ProgramEvaluator:
                 f"mnist_v2_{self._compiler.constraints.track.value}_program"
             ),
         )
+
+    @property
+    def subexpression_cache_metrics(self) -> dict[str, int | float]:
+        return self._evaluator.subexpression_cache_metrics

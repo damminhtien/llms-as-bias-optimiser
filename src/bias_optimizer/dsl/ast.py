@@ -89,18 +89,23 @@ class Expr:
             budget[0] += 1
             if budget[0] > 127:
                 raise ValueError("expression exceeds the 127-node parser limit")
-            if not isinstance(node, Mapping) or set(node) != {"op", "args", "params"}:
-                raise ValueError("expression must contain exactly op, args, and params")
-            if not isinstance(node["args"], list) or not isinstance(
-                node["params"], Mapping
+            expected = {"op", "args", "params"}
+            if (
+                not isinstance(node, Mapping)
+                or "op" not in node
+                or set(node) - expected
             ):
+                raise ValueError("expression may contain only op, args, and params")
+            args = node.get("args", [])
+            params = node.get("params", {})
+            if not isinstance(args, list) or not isinstance(params, Mapping):
                 raise TypeError(
                     "expression args must be a list and params must be an object"
                 )
             return cls(
                 op=node["op"],
-                args=tuple(parse(child, depth + 1) for child in node["args"]),
-                params=node["params"],
+                args=tuple(parse(child, depth + 1) for child in args),
+                params=params,
             )
 
         return parse(value, 0)
