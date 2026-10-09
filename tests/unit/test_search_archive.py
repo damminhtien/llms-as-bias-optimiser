@@ -5,7 +5,7 @@ import pytest
 
 from bias_optimizer.domain.bias import BiasSpec, OperatorSpec, bias_spec_hash
 from bias_optimizer.domain.evaluation import Evaluation
-from bias_optimizer.domain.search import SearchRecord
+from bias_optimizer.domain.search import FailureFeedback, SearchRecord
 from bias_optimizer.search.archive import SearchArchive
 
 
@@ -73,6 +73,31 @@ def test_search_record_rejects_tampered_hash_and_unknown_fields() -> None:
         SearchRecord.from_dict(payload)
 
 
+def test_failure_feedback_round_trips_and_measures_reduction() -> None:
+    feedback = FailureFeedback(
+        actual_digit=3,
+        predicted_digit=5,
+        baseline_count=12,
+        candidate_count=7,
+    )
+
+    restored = FailureFeedback.from_dict(feedback.to_dict())
+
+    assert restored == feedback
+    assert restored.improvement == 5
+
+
+def test_search_record_reads_legacy_archive_rows_without_feedback_fields() -> None:
+    payload = _record("legacy_candidate").to_dict()
+    payload.pop("proposal_category")
+    payload.pop("failure_feedback")
+
+    restored = SearchRecord.from_dict(payload)
+
+    assert restored.proposal_category is None
+    assert restored.failure_feedback == ()
+
+
 def test_search_archive_persists_reloads_deduplicates_and_ranks(tmp_path) -> None:
     path = tmp_path / "nested" / "search.jsonl"
     archive = SearchArchive(path)
@@ -97,6 +122,46 @@ def test_search_archive_persists_reloads_deduplicates_and_ranks(tmp_path) -> Non
         higher.candidate_id,
         lower.candidate_id,
     ]
+
+
+def test_search_archive_promotes_only_accuracy_improving_ablations(
+    tmp_path,
+) -> None:
+    archive = SearchArchive(tmp_path / "search.jsonl")
+    candidate = _record("candidate", accuracy_500=0.8)
+    ablation_bias = _bias("candidate_without_spatial")
+    ablation = SearchRecord(
+        generation=1,
+        bias=ablation_bias,
+        evaluation=_evaluation(accuracy_500=0.99),
+        parent_ids=(candidate.candidate_id,),
+        record_type="ablation",
+        base_candidate_id=candidate.candidate_id,
+        removed_operator="spatial",
+    )
+    weaker_candidate = _record("weaker_candidate", accuracy_500=0.7)
+    worse_ablation = SearchRecord(
+        generation=1,
+        bias=_bias("weaker_candidate_without_spatial"),
+        evaluation=_evaluation(accuracy_500=0.6),
+        parent_ids=(weaker_candidate.candidate_id,),
+        record_type="ablation",
+        base_candidate_id=weaker_candidate.candidate_id,
+        removed_operator="spatial",
+    )
+    archive.add(candidate)
+    archive.add(ablation)
+    archive.add(weaker_candidate)
+    archive.add(worse_ablation)
+
+    assert len(archive.records) == 4
+    assert archive.get(ablation.candidate_id).record_type == "ablation"
+    assert tuple(record.candidate_id for record in archive.top(1)) == (
+        ablation.candidate_id,
+    )
+    assert worse_ablation.candidate_id not in {
+        record.candidate_id for record in archive.top(10)
+    }
 
 
 def test_search_archive_rejects_conflicting_duplicate_and_corrupt_jsonl(

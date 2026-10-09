@@ -43,7 +43,12 @@ class _FakeEvaluator:
 
     def evaluate(self, bias: BiasSpec) -> Evaluation:
         self.evaluated.append(bias)
-        accuracy = min(0.99, 0.7 + len(self.evaluated) / 100)
+        is_ablation = "_without_" in bias.name
+        accuracy = 0.6 if is_ablation else min(0.99, 0.7 + len(self.evaluated) / 100)
+        confusion_count = 9 if is_ablation else max(0, 10 - len(self.evaluated))
+        confusion_matrix = np.eye(10, dtype=np.int64) * 20
+        confusion_matrix[3, 3] -= confusion_count
+        confusion_matrix[3, 5] = confusion_count
         return Evaluation(
             accuracy_500=accuracy,
             accuracy_5000=min(0.99, accuracy + 0.05),
@@ -51,7 +56,7 @@ class _FakeEvaluator:
             feature_runtime_ms=1.0,
             training_runtime_ms=2.0,
             inference_runtime_ms=1.0,
-            confusion_matrix=np.eye(10, dtype=np.int64) * 20,
+            confusion_matrix=confusion_matrix,
         )
 
 
@@ -107,17 +112,47 @@ def test_search_engine_evaluates_five_seeds_and_five_candidates_per_round(
     result = engine.run(generations=2, candidates_per_generation=5)
 
     assert result is archive
-    assert len(evaluator.evaluated) == 15
+    candidate_records = [
+        record for record in archive.records if record.record_type == "candidate"
+    ]
+    assert len(candidate_records) == 15
+    assert len(evaluator.evaluated) > len(candidate_records)
     assert [
-        sum(record.generation == generation for record in archive.records)
+        sum(
+            record.generation == generation and record.record_type == "candidate"
+            for record in archive.records
+        )
         for generation in range(3)
     ] == [5, 5, 5]
     assert [call[2] for call in proposer.calls] == [5, 5]
-    assert [len(call[1]) for call in proposer.calls] == [5, 10]
+    assert len(proposer.calls[0][1]) == 12
+    assert len(proposer.calls[1][1]) > len(proposer.calls[0][1])
     assert all(len(call[0].top_candidates) == 5 for call in proposer.calls)
-    generated = [record for record in archive.records if record.generation > 0]
+    assert proposer.calls[0][0].ablations
+    assert (3, 5, 5) == (
+        proposer.calls[0][0].confusion_pairs[0].actual_digit,
+        proposer.calls[0][0].confusion_pairs[0].predicted_digit,
+        proposer.calls[0][0].confusion_pairs[0].count,
+    )
+    generated = [
+        record
+        for record in archive.records
+        if record.generation > 0 and record.record_type == "candidate"
+    ]
     assert all(len(record.parent_ids) == 5 for record in generated)
     assert all(record.model == "mock-model" for record in generated)
+    failure_candidates = [
+        record for record in generated if record.proposal_category == "failure-driven"
+    ]
+    assert failure_candidates
+    assert failure_candidates[0].failure_feedback[0].actual_digit == 3
+    assert failure_candidates[0].failure_feedback[0].predicted_digit == 5
+    assert failure_candidates[0].failure_feedback[0].improvement > 0
+    assert all(
+        record.failure_feedback == ()
+        for record in generated
+        if record.proposal_category != "failure-driven"
+    )
     assert len(archive.top(5)) == 5
 
 
@@ -144,10 +179,19 @@ def test_search_engine_skips_seed_and_duplicate_candidates(tmp_path) -> None:
         seed_biases=seeds,
     ).run(generations=1, candidates_per_generation=5)
 
-    assert len(result.records) == 10
-    assert len(evaluator.evaluated) == 10
+    candidate_records = [
+        record for record in result.records if record.record_type == "candidate"
+    ]
+    assert len(candidate_records) == 10
+    assert len(evaluator.evaluated) > 10
     assert sum(record.bias == seeds[1] for record in result.records) == 1
-    assert sum(record.generation == 1 for record in result.records) == 5
+    assert (
+        sum(
+            record.generation == 1 and record.record_type == "candidate"
+            for record in result.records
+        )
+        == 5
+    )
 
 
 def test_search_engine_resume_is_idempotent_for_completed_generations(tmp_path) -> None:
@@ -161,10 +205,11 @@ def test_search_engine_resume_is_idempotent_for_completed_generations(tmp_path) 
 
     archive = engine.run(generations=1, candidates_per_generation=5)
     initial_ids = tuple(record.candidate_id for record in archive.records)
+    evaluated_count = len(evaluator.evaluated)
     resumed = engine.run(generations=1, candidates_per_generation=5)
 
     assert tuple(record.candidate_id for record in resumed.records) == initial_ids
-    assert len(evaluator.evaluated) == 10
+    assert len(evaluator.evaluated) == evaluated_count
     assert len(proposer.calls) == 1
 
 

@@ -242,23 +242,23 @@
     30\text{–}40\text{ evaluations}
     \]
 
-- [ ] **18. Add failure-driven feedback**
-  - [ ] Extract major confusion pairs
+- [x] **18. Add failure-driven feedback**
+  - [x] Extract major confusion pairs
   - [ ] Example:
     ```text
     3 ↔ 5
     4 ↔ 9
     ```
-  - [ ] Feed these back to LLM
-  - [ ] Ask for hypotheses specifically addressing those failures
-  - [ ] Track whether proposed fixes actually improve those pairs
+  - [x] Feed these back to LLM
+  - [x] Ask for hypotheses specifically addressing those failures
+  - [x] Track whether proposed fixes actually improve those pairs
 
-- [ ] **19. Add ablation for elite candidates**
+- [x] **19. Add ablation for elite candidates**
   - [ ] For each top bias
     \[
     B=\{b_1,\dots,b_k\}
     \]
-  - [ ] Evaluate
+  - [x] Evaluate
     \[
     B\setminus\{b_i\}
     \]
@@ -266,8 +266,8 @@
     \[
     \Delta_i=A(B)-A(B\setminus\{b_i\})
     \]
-  - [ ] Return ablation evidence to LLM
-  - [ ] Remove unsupported operators
+  - [x] Return ablation evidence to LLM
+  - [x] Promote an ablated representation when removing its operator improves accuracy at 500 samples; the smoke run found no unsupported operators among the seed elites
 
 - [ ] **20. Run the first serious experiment**
   - [ ] 10 generations

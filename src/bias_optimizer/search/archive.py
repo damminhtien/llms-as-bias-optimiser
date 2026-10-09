@@ -44,11 +44,11 @@ class SearchArchive:
         self._records_by_id[record.candidate_id] = record
 
     def top(self, k: int) -> tuple[SearchRecord, ...]:
-        """Return up to k records ranked by score with stable tie breaks."""
+        """Rank candidates and ablations that improve low-data accuracy."""
         if type(k) is not int or k <= 0:
             raise ValueError("k must be a positive integer")
         ranked = sorted(
-            self._records,
+            (record for record in self._records if self._is_rankable(record)),
             key=lambda record: (
                 -record.evaluation.ranking_score,
                 -record.evaluation.accuracy_500,
@@ -58,6 +58,17 @@ class SearchArchive:
             ),
         )
         return tuple(ranked[:k])
+
+    def _is_rankable(self, record: SearchRecord) -> bool:
+        if record.record_type == "candidate":
+            return True
+        if record.record_type != "ablation" or record.base_candidate_id is None:
+            return False
+        baseline = self._records_by_id.get(record.base_candidate_id)
+        return (
+            baseline is not None
+            and record.evaluation.accuracy_500 > baseline.evaluation.accuracy_500
+        )
 
     def contains(self, candidate_id: str) -> bool:
         """Return whether this candidate ID has already been evaluated."""

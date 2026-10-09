@@ -202,6 +202,9 @@ Hard constraints:
 Produce exactly {proposal_count} candidates, in this order:
 {category_lines}
 When there are more than four slots, repeat the four candidate types in this order.
+An exploitation refines the strongest result; failure-driven directly targets the
+largest reported confusion pair; simplification removes unsupported operators;
+exploration tests a distinct allowed representation.
 
 Use the evidence to address the weakest validation results and largest confusion
 pairs. Where ablations exist, preserve operators only when evidence supports them.
