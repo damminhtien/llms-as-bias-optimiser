@@ -98,8 +98,8 @@
   - [x] Add JSON serialization/deserialization
   - [x] Validate identifier syntax and JSON-safe parameter values (operator allow-list and bounds are step 7)
 
-- [ ] **7. Implement operator registry**
-  - [ ] Register only allowed operators:
+- [x] **7. Implement operator registry**
+  - [x] Register only allowed operators:
     ```text
     raw_pixels
     topology
@@ -109,9 +109,9 @@
     curvature
     direction_transition
     ```
-  - [ ] Reject arbitrary code from LLM
-  - [ ] Validate parameter bounds
-  - [ ] Add registry tests
+  - [x] Reject arbitrary code from LLM
+  - [x] Validate parameter bounds
+  - [x] Add registry tests
 
 - [ ] **8. Implement `FeaturePipeline`**
   - [ ] Compose several `FeatureOperator`s

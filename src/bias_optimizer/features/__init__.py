@@ -6,6 +6,7 @@ from bias_optimizer.features.baselines import (
     RawPixelsOperator,
 )
 from bias_optimizer.features.curvature import CurvatureOperator
+from bias_optimizer.features.registry import OperatorRegistry
 from bias_optimizer.features.skeleton import skeletonize_image
 from bias_optimizer.features.skeleton_graph import (
     detect_endpoints_and_junctions,
@@ -25,6 +26,7 @@ __all__ = [
     "DirectionTransitionOperator",
     "DownsampledPixelsOperator",
     "HOGOperator",
+    "OperatorRegistry",
     "RawPixelsOperator",
     "SpatialOperator",
     "StrokeDirectionOperator",
