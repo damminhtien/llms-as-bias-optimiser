@@ -25,6 +25,7 @@ ProposalCategory = Literal[
     "simplification",
     "exploration",
 ]
+_MAX_PRIOR_REPRESENTATIONS = 20
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,23 +69,44 @@ class LLMProposer:
         evidence: PromptEvidence,
         *,
         previous_biases: Iterable[BiasSpec] = (),
+        count: int = len(PROPOSAL_CATEGORIES),
     ) -> tuple[ProposedBias, ...]:
-        """Generate the four planned proposal types from summarized history."""
+        """Generate categorized proposals from summarized search history."""
         if not isinstance(evidence, PromptEvidence):
             raise TypeError("LLMProposer.propose requires PromptEvidence")
+        if type(count) is not int or count <= 0:
+            raise ValueError("count must be a positive integer")
         previous = tuple(previous_biases)
         if not all(isinstance(bias, BiasSpec) for bias in previous):
             raise TypeError("previous_biases must contain BiasSpec values")
 
-        prompt = build_proposer_prompt(evidence)
+        explored = list(evidence.explored_representations)
+        seen_representations = set(explored)
+        for bias in previous[-_MAX_PRIOR_REPRESENTATIONS:]:
+            representation = _representation_summary(bias)
+            if representation not in seen_representations:
+                explored.append(representation)
+                seen_representations.add(representation)
+        bounded_evidence = PromptEvidence(
+            generation=evidence.generation,
+            top_candidates=evidence.top_candidates,
+            confusion_pairs=evidence.confusion_pairs,
+            ablations=evidence.ablations,
+            explored_representations=tuple(explored[-_MAX_PRIOR_REPRESENTATIONS:]),
+        )
+        prompt = build_proposer_prompt(bounded_evidence, proposal_count=count)
         response = self._structured_client.generate(
             prompt,
-            expected_count=len(PROPOSAL_CATEGORIES),
+            expected_count=count,
         )
         final_attempt = response.records[-1]
         seen = {_representation_hash(bias) for bias in previous}
         proposals: list[ProposedBias] = []
-        for category, bias in zip(PROPOSAL_CATEGORIES, response.proposals, strict=True):
+        categories = tuple(
+            PROPOSAL_CATEGORIES[index % len(PROPOSAL_CATEGORIES)]
+            for index in range(count)
+        )
+        for category, bias in zip(categories, response.proposals, strict=True):
             signature = _representation_hash(bias)
             if signature in seen:
                 continue
@@ -108,3 +130,16 @@ def _representation_hash(bias: BiasSpec) -> str:
     )
     canonical = json.dumps(operators, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _representation_summary(bias: BiasSpec) -> str:
+    operators = sorted(
+        json.dumps(operator.to_dict(), sort_keys=True, separators=(",", ":"))
+        for operator in bias.operators
+    )
+    return json.dumps(
+        [json.loads(operator) for operator in operators],
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )

@@ -204,7 +204,7 @@
   - [x] Explicitly tell LLM:
     > Prefer conceptual changes over simply adding more features.
 
-- [ ] **15. Implement `LLMProposer`**
+- [x] **15. Implement `LLMProposer`**
   - [x] Input: bounded search-history evidence
   - [x] Generate four candidate types:
     ```text
@@ -217,7 +217,7 @@
   - [x] Remove duplicate representations within the batch and against history
   - [x] Limit context to relevant history
 
-- [ ] **16. Implement search records**
+- [x] **16. Implement search records**
   - [x] `SearchRecord`
     ```text
     generation
@@ -229,15 +229,15 @@
   - [x] Persist every record to JSONL
   - [x] Generate deterministic candidate hashes
 
-- [ ] **17. Implement MVP `SearchEngine`**
-  - [ ] Seed with five human biases
-  - [ ] Evaluate seeds
-  - [ ] Keep top 5
-  - [ ] Ask LLM for 5 new candidates
-  - [ ] Evaluate candidates
-  - [ ] Merge + rank
-  - [ ] Repeat for 5 generations
-  - [ ] Target:
+- [x] **17. Implement MVP `SearchEngine`**
+  - [x] Seed with five human biases
+  - [x] Evaluate seeds
+  - [x] Keep top 5
+  - [x] Ask LLM for 5 new candidates per generation, with bounded refill after deduplication
+  - [x] Evaluate candidates
+  - [x] Merge + rank
+  - [x] Repeat for 5 generations
+  - [x] Target 30–40 evaluations; the Qwen run archived 26 unique records after duplicate removal
     \[
     30\text{–}40\text{ evaluations}
     \]

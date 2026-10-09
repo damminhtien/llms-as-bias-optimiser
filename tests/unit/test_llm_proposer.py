@@ -92,6 +92,44 @@ def test_proposer_deduplicates_by_representation_against_history_and_batch() -> 
         "unique_failure",
         "unique_exploration",
     )
+    prompt_payload = json.loads(
+        proposals[0].prompt.split(
+            "Validation evidence (search/validation split only):\n", 1
+        )[1]
+    )
+    assert prompt_payload["explored_representations"] == [
+        '[{"name":"spatial","params":{}},{"name":"topology","params":{}}]'
+    ]
+
+
+def test_proposer_supports_five_candidates_with_cycled_categories() -> None:
+    biases = (
+        _bias("exploit", ("topology", "spatial")),
+        _bias("failure", ("topology", "stroke_direction")),
+        _bias("simplify", ("spatial",)),
+        _bias("explore", ("raw_pixels", "curvature")),
+        _bias("second_exploitation", ("symmetry",)),
+    )
+    client = MockLLMClient(_response(*biases))
+    proposer = LLMProposer(client)
+
+    proposals = proposer.propose(_evidence(), count=5)
+
+    assert tuple(proposal.category for proposal in proposals) == (
+        "exploitation",
+        "failure-driven",
+        "simplification",
+        "exploration",
+        "exploitation",
+    )
+    assert "exactly 5 candidates" in client.prompts[0]
+
+
+def test_proposer_rejects_invalid_count() -> None:
+    proposer = LLMProposer(MockLLMClient("unused"))
+
+    with pytest.raises(ValueError, match="count"):
+        proposer.propose(_evidence(), count=0)
 
 
 def test_proposer_rejects_non_compact_evidence_and_invalid_history() -> None:

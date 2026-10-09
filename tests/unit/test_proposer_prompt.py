@@ -42,6 +42,8 @@ def test_prompt_covers_objective_constraints_evidence_and_schema() -> None:
     assert "low-data MNIST" in prompt
     assert "StandardScaler" in prompt and "LogisticRegression(C=1.0" in prompt
     assert ", ".join(OPERATOR_NAMES) in prompt
+    assert "only topology accepts a parameter" in prompt
+    assert "all other operators require an empty params object" in prompt
     assert payload["confusion_pairs"][0] == {
         "actual_digit": 3,
         "predicted_digit": 5,
@@ -59,6 +61,23 @@ def test_prompt_requests_the_four_candidate_categories_in_order() -> None:
 
     assert positions == sorted(positions)
     assert len(PROPOSAL_CATEGORIES) == 4
+
+
+def test_prompt_cycles_categories_to_support_five_candidate_generations() -> None:
+    prompt = build_proposer_prompt(_evidence(), proposal_count=5)
+
+    assert "Produce exactly 5 candidates" in prompt
+    assert "1. exploitation" in prompt
+    assert "2. failure-driven" in prompt
+    assert "3. simplification" in prompt
+    assert "4. exploration" in prompt
+    assert "5. exploitation" in prompt
+
+
+@pytest.mark.parametrize("proposal_count", [0, -1, True])
+def test_prompt_rejects_invalid_proposal_count(proposal_count: int) -> None:
+    with pytest.raises(ValueError, match="proposal_count"):
+        build_proposer_prompt(_evidence(), proposal_count=proposal_count)
 
 
 def test_prompt_contains_only_bounded_summary_evidence() -> None:
@@ -84,6 +103,9 @@ def test_prompt_contains_only_bounded_summary_evidence() -> None:
             ablations=tuple(
                 AblationEvidence("candidate", "spatial", 0.7, 0.6) for _ in range(20)
             ),
+            explored_representations=tuple(
+                f"representation_{index}" for index in range(30)
+            ),
         )
     )
     payload_text = prompt.split(
@@ -94,6 +116,8 @@ def test_prompt_contains_only_bounded_summary_evidence() -> None:
     assert len(payload["top_candidates"]) == 5
     assert len(payload["confusion_pairs"]) == 5
     assert len(payload["ablations"]) == 10
+    assert len(payload["explored_representations"]) == 20
+    assert payload["explored_representations"][0] == "representation_10"
     assert "train_images" not in payload and "test_images" not in payload
 
 
