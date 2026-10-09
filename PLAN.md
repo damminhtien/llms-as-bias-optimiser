@@ -325,11 +325,11 @@
   - [x] The best bias was only 8 features larger than raw pixels; smaller structural-only candidates performed poorly
   - [x] Record full findings, limits, protocol, and reproducibility in `reports/FINAL_REPORT.md`
 
-- [ ] **25. Stop condition**
-  - [ ] Stop after ~100 candidates unless new generations still improve materially
-  - [ ] Stop if last 3 generations improve \(A_{500}\) by less than ~0.2%
-  - [ ] Do not expand the project into unrestricted AutoML
-  - [ ] Keep the central claim focused on:
+- [x] **25. Stop condition**
+  - [x] Stop at 62 candidates because later generations did not improve materially
+  - [x] Best-so-far \(A_{500}\) did not improve after generation 5; generations 8–10 added 0.00 percentage points
+  - [x] Keep the project bounded; do not expand into unrestricted AutoML
+  - [x] Keep the central claim focused on:
     \[
     \boxed{\text{LLM-guided inductive-bias discovery}}
     \]
