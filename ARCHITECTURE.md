@@ -176,6 +176,107 @@ changes. The compact classical control is a 16-dimensional zoning descriptor.
   useful MNIST/EMNIST Digits spatial prior, not a universal handwriting rule.
   Full protocols and scores are in [`reports/V3_EVIDENCE.md`](reports/V3_EVIDENCE.md).
 
+## V3.1 frozen-bias evaluation architecture
+
+### Research boundary
+
+V3.1 does not search for new biases or change the V3 finalist set. It evaluates
+the frozen V3 programs alongside the predeclared V2 and classical controls to
+answer how an inductive bias should be evaluated. Performance is the joint
+quantity
+
+```text
+performance = f(representation, learner, training size, domain)
+```
+
+so a low score with one learner is evidence about that representation-learner
+pair, not proof that the representation is poor. V3's search reports, evidence,
+finalist manifest, and candidate ASTs remain frozen and unchanged.
+
+There is no LLM or search loop in V3.1. The evaluation code consumes a
+predeclared registry and immutable protocol, then records evidence across
+sample efficiency, learner capacity, dimension-matched controls,
+complementarity, mechanism specificity, robustness, and transfer.
+
+### Evaluation package and data flow
+
+```text
+frozen V3 programs + V2/classical controls
+                    │
+                    ▼
+      stateful Representation registry
+                    │
+                    ▼
+       split-aware feature matrix cache
+                    │
+                    ▼
+          fixed Probe configuration
+                    │
+                    ▼
+            evaluation runner
+        ┌───────────┼───────────┐
+        ▼           ▼           ▼
+  learning curves complementarity robustness/transfer
+        └───────────┼───────────┘
+                    ▼
+      paired statistics and artifacts
+                    │
+                    ▼
+       bias evaluation profile/report
+```
+
+Implementation belongs in `src/bias_optimizer/evaluation/`; experiment files
+are thin command-line entry points. `Representation` has `fit(images, labels)`
+and `transform(images)` methods because HOG-PCA is stateful. Every run creates
+a fresh representation and probe, fits representations only on that run's
+training images, then transforms train and evaluation images. The runner must
+never expose evaluation labels to representation fitting. Stateless full-dataset
+features may be cached; fitted PCA outputs are split- and seed-specific.
+
+The frozen registry includes the five V3 finalists, the V2 `cycle_angle_hist`,
+raw pixels, HOG, 30D zoning, and train-fitted HOG-PCA at 30D and 60D. Fixed
+probes are standardized logistic regression (the V3 learner settings), RBF
+SVM, and a small MLP; kNN is secondary. Probe settings are frozen in
+`results/v31/protocol.json`; test performance must not tune them. Optional
+sensitivity analysis uses inner cross-validation on training data only.
+
+### Protocol and analysis
+
+`V3_1_PROTOCOL.md` and its canonical JSON manifest freeze primary hypotheses,
+representations, probes, datasets, sample sizes, seeds, transformations,
+metrics, and comparisons before any V3.1 results are produced. For a fixed
+`(dataset, size, seed)`, all representations use the same stratified training
+indices. The primary MNIST learning curve uses sizes 100, 250, 500, 1,000,
+2,500, and 5,000 with seeds 11, 23, and 47. It reports each point and the
+trapezoidal accuracy area under the curve over log training size.
+
+Core analysis crosses representations and probes; compares V3 with HOG-PCA at
+the same dimensions; and reports a Pareto frontier over feature dimension and
+accuracy. Complementarity compares HOG and raw pixels against their
+concatenations with the three leading V3 representations. Mechanism analysis
+compares a targeted counterfactual with a magnitude-matched nuisance control.
+Robustness evaluates clean-trained models on frozen image transformations.
+Transfer reuses the same representation/probe matrix on MNIST, EMNIST Digits,
+EMNIST Letters, KMNIST, and Fashion-MNIST, with interpretation tied to domain
+similarity rather than a universal-transfer claim.
+
+Every result retains per-example predictions for paired bootstrap confidence
+intervals and McNemar comparisons. Means and standard deviations across the
+three training-subset seeds describe subset variability; they are not used as
+a three-sample t-test. The final report presents a multi-axis profile for each
+bias rather than a single aggregate score. Result files live under
+`results/v31/` and the report is `reports/V3_1_BIAS_EVALUATION.md`.
+
+### Leakage and reproducibility gates
+
+The evaluation split registry is deterministic and independent of
+representation identity. PCA and every scaler fit only on training data.
+Every seed/run uses fresh fitted objects. Protocol and artifact manifests are
+hashed, predictions align exactly with evaluation indices, and paired
+statistics resample the same example indices for both models. Unit tests for
+these conditions must pass before starting the core matrix. The prescribed
+execution order and acceptance checklist are tracked in [`TODO.md`](TODO.md).
+
 ## V2 frozen architecture reference
 
 ### 1. Research boundary

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "study_id": "v3.1-bias-evaluation",
+  "frozen_on": "2026-10-10",
+  "branch": "v3.1-bias-evaluation",
+  "source_commit": "1e9f29bd7f21863f84340b25e6b3e193c43d1220",
+  "protocol": {
+    "path": "results/v31/protocol.json",
+    "sha256": "64a0fe73d9c4454f9b8fcc9fd62dd0994ff9aff967168ebf9097736bcf33586b"
+  },
+  "protected_source_files": {
+    "reports/V3_SEARCH.md": "7486bfaa019e27ea76f2a62c2ea8abfd46630e89e9e22a91a01de01c3a898083",
+    "reports/V3_EVIDENCE.md": "121da1bf4429bb53253e82bc65dc32cba285d09bf0250e8580754a47847c9b5d",
+    "results/v3_frozen_finalists.json": "a2a2215e6d25ddb1e8d4e35ae084453117994b3e07341b71fdf522274ed33435",
+    "results/v3_program_search_discovery.jsonl": "452917a23a9e1be2b252e9739445e514bb119450c99c21020790d05e0cb2e686",
+    "results/v3_finalist_evaluations.json": "631c49158491b47f7e3f7e085d98c40f32447e6cc929ea65d2913f0e6df6699e",
+    "results/v2_transfer_finalists.json": "98d8973e489e7992547288bb46d6ef6073c3ca69213e9adccdda2b63faaef5dd",
+    "results/program_search_discovery.jsonl": "26ceb8d94b0ba78352a2f3cc3c939b0892cd362c5798f25c8c50d9d3dbbb8772"
+  },
+  "v3_search_archive_sha256": "452917a23a9e1be2b252e9739445e514bb119450c99c21020790d05e0cb2e686",
+  "v3_finalist_manifest_sha256": "a2a2215e6d25ddb1e8d4e35ae084453117994b3e07341b71fdf522274ed33435",
+  "v3_finalist_ast_sha256": {
+    "angle_centroid_pairwise": "11cc068e7d9bfb9f1f7aaf344b1525e4191f5b1619b6c5e8c1c628e4e4585e2d",
+    "regional_turn_histogram": "f7f0665e0a2714a51a6ae84187cf5730b6626fc03d97db2c9bdbc748b929b1ba",
+    "horizontal_turn_spatial": "60d3712ca077344d1834b213bfffdb3ae6b233ecc06900c9f175920c95537513",
+    "regional_turn_profile": "d0b5ed9550939dda842aa2fc0b518e7045e6e8a078f085c6726e19368d348d6f",
+    "vertical_turn_gradient": "3192e25af83486cb2abf57099296e46405b14d931754cc32dc8045e562f55505"
+  },
+  "v2_selected_candidate": {
+    "id": "cycle_angle_hist",
+    "kind": "v2_program",
+    "dimension": 16,
+    "candidate_id": "bd5c928dda412ccbeebbc86a1ccd32210ec06b932870896d250c2618f2788546",
+    "ast_sha256": "e77f336fa1e9aa9d7acba2c42a3f85e4036b23bae30b3639bb49f7de3fc2c815"
+  },
+  "v2_search_archive_sha256": "26ceb8d94b0ba78352a2f3cc3c939b0892cd362c5798f25c8c50d9d3dbbb8772"
+}

@@ -1,0 +1,387 @@
+{
+  "schema_version": 1,
+  "study_id": "v3.1-bias-evaluation",
+  "frozen_on": "2026-10-10",
+  "research_question": "How should an inductive bias be evaluated?",
+  "primary_questions": [
+    "Does V3 improve low-data sample efficiency over dimension-matched controls?",
+    "Does nonlinear probing recover information unavailable to the linear probe?",
+    "Does V3 add predictive information beyond HOG?",
+    "Is the proposed mechanism specifically supported by targeted counterfactuals?",
+    "Does the bias transfer preferentially to related domains?"
+  ],
+  "interpretation": "Performance is conditional on representation, learner, training size, and dataset; probe performance is not absolute information retention.",
+  "v3_search_enabled": false,
+  "v3_candidates_frozen": true,
+  "representations": [
+    {
+      "id": "angle_centroid_pairwise",
+      "kind": "v3_program",
+      "dimension": 30,
+      "candidate_id": "65202abebb1b525263a36ce1de01dc75622e8e0eef52b312ceeb7630082e7902",
+      "ast_sha256": "11cc068e7d9bfb9f1f7aaf344b1525e4191f5b1619b6c5e8c1c628e4e4585e2d"
+    },
+    {
+      "id": "regional_turn_histogram",
+      "kind": "v3_program",
+      "dimension": 60,
+      "candidate_id": "4548507386e3a0c004967d9a40a11be7acfe93128744485c4518b0dabe84207d",
+      "ast_sha256": "f7f0665e0a2714a51a6ae84187cf5730b6626fc03d97db2c9bdbc748b929b1ba"
+    },
+    {
+      "id": "horizontal_turn_spatial",
+      "kind": "v3_program",
+      "dimension": 30,
+      "candidate_id": "5b84d0a5caa2b500b5035b2bb369efa7c1d9640ac8afe612391420a284486894",
+      "ast_sha256": "60d3712ca077344d1834b213bfffdb3ae6b233ecc06900c9f175920c95537513"
+    },
+    {
+      "id": "regional_turn_profile",
+      "kind": "v3_program",
+      "dimension": 36,
+      "candidate_id": "6b94487fdb4d61f3ce55657096396da9f9647e53bd54bf476f8f6b9d71951eaf",
+      "ast_sha256": "d0b5ed9550939dda842aa2fc0b518e7045e6e8a078f085c6726e19368d348d6f"
+    },
+    {
+      "id": "vertical_turn_gradient",
+      "kind": "v3_program",
+      "dimension": 42,
+      "candidate_id": "5f463ba017206f59cf3ffe7c3a9b016646086f7a93f7518e33dc7403c9f0d67c",
+      "ast_sha256": "3192e25af83486cb2abf57099296e46405b14d931754cc32dc8045e562f55505"
+    },
+    {
+      "id": "cycle_angle_hist",
+      "kind": "v2_program",
+      "dimension": 16,
+      "candidate_id": "bd5c928dda412ccbeebbc86a1ccd32210ec06b932870896d250c2618f2788546",
+      "ast_sha256": "e77f336fa1e9aa9d7acba2c42a3f85e4036b23bae30b3639bb49f7de3fc2c815"
+    },
+    {
+      "id": "zoning_30d",
+      "kind": "zoning",
+      "dimension": 30,
+      "grid": [
+        5,
+        6
+      ]
+    },
+    {
+      "id": "hog_pca_30d",
+      "kind": "hog_pca",
+      "dimension": 30,
+      "source": "hog"
+    },
+    {
+      "id": "hog_pca_60d",
+      "kind": "hog_pca",
+      "dimension": 60,
+      "source": "hog"
+    },
+    {
+      "id": "hog",
+      "kind": "hog",
+      "dimension": 1296,
+      "orientations": 9,
+      "pixels_per_cell": [
+        4,
+        4
+      ],
+      "cells_per_block": [
+        2,
+        2
+      ],
+      "block_norm": "L2-Hys"
+    },
+    {
+      "id": "raw_pixels",
+      "kind": "raw_pixels",
+      "dimension": 784
+    }
+  ],
+  "primary_matrix_representations": [
+    "angle_centroid_pairwise",
+    "regional_turn_histogram",
+    "horizontal_turn_spatial",
+    "cycle_angle_hist",
+    "zoning_30d",
+    "hog_pca_30d",
+    "hog_pca_60d",
+    "hog",
+    "raw_pixels"
+  ],
+  "primary_probes": {
+    "linear_logreg": {
+      "scaler": "StandardScaler",
+      "estimator": "LogisticRegression",
+      "C": 1.0,
+      "solver": "lbfgs",
+      "max_iter": 1000,
+      "random_state": "training_seed"
+    },
+    "rbf_svm": {
+      "scaler": "StandardScaler",
+      "estimator": "SVC",
+      "kernel": "rbf",
+      "C": 10.0,
+      "gamma": "scale",
+      "random_state": "training_seed"
+    },
+    "small_mlp": {
+      "scaler": "StandardScaler",
+      "estimator": "MLPClassifier",
+      "hidden_layer_sizes": [
+        128
+      ],
+      "alpha": 0.0001,
+      "early_stopping": true,
+      "validation_fraction": 0.1,
+      "n_iter_no_change": 10,
+      "max_iter": 300,
+      "random_state": "training_seed"
+    }
+  },
+  "secondary_probes": {
+    "knn": {
+      "scaler": "StandardScaler",
+      "estimator": "KNeighborsClassifier",
+      "n_neighbors": 5,
+      "weights": "distance"
+    }
+  },
+  "data": {
+    "mnist_search": {
+      "loader": "load_mnist_search_data",
+      "source_train_count": 60000,
+      "training_pool_count": 58000,
+      "validation_count": 2000,
+      "split_seed": 42,
+      "phase_a_b_eval": "validation"
+    },
+    "training_seeds": [
+      11,
+      23,
+      47
+    ],
+    "core_train_sizes": [
+      250,
+      500,
+      1000,
+      5000
+    ],
+    "learning_curve_train_sizes": [
+      100,
+      250,
+      500,
+      1000,
+      2500,
+      5000
+    ],
+    "transfer_test_sample_size": 2000,
+    "transfer_test_sample_seed": 31415,
+    "transfer_datasets": [
+      "emnist_digits",
+      "emnist_letters",
+      "kmnist",
+      "fashion_mnist"
+    ]
+  },
+  "phases": {
+    "A_core": {
+      "representations": [
+        "angle_centroid_pairwise",
+        "regional_turn_histogram",
+        "horizontal_turn_spatial",
+        "cycle_angle_hist",
+        "zoning_30d",
+        "hog_pca_30d",
+        "hog_pca_60d",
+        "hog",
+        "raw_pixels"
+      ],
+      "probes": [
+        "linear_logreg",
+        "rbf_svm",
+        "small_mlp"
+      ],
+      "train_sizes": [
+        250,
+        500,
+        1000,
+        5000
+      ],
+      "seeds": [
+        11,
+        23,
+        47
+      ],
+      "expected_fits": 324
+    },
+    "A_learning_curve_extension": {
+      "additional_sizes": [
+        100,
+        2500
+      ],
+      "same_representations_and_probes": true,
+      "seeds": [
+        11,
+        23,
+        47
+      ],
+      "expected_additional_fits": 162
+    },
+    "B_complementarity": {
+      "v3_representations": [
+        "angle_centroid_pairwise",
+        "regional_turn_histogram",
+        "horizontal_turn_spatial"
+      ],
+      "anchors": [
+        "hog",
+        "raw_pixels"
+      ],
+      "probes": [
+        "linear_logreg",
+        "small_mlp"
+      ],
+      "train_sizes": [
+        500,
+        5000
+      ],
+      "seeds": [
+        11,
+        23,
+        47
+      ]
+    },
+    "C_mechanism_robustness": {
+      "v3_representations": [
+        "angle_centroid_pairwise",
+        "regional_turn_histogram",
+        "horizontal_turn_spatial"
+      ],
+      "train_size": 5000,
+      "seeds": [
+        11,
+        23,
+        47
+      ],
+      "test_sample_size": 2000,
+      "test_sample_seed": 27182,
+      "target_intervention": "spatial_reassignment",
+      "nuisance_control": "training-calibrated Gaussian pixel noise with matched feature displacement",
+      "transforms": [
+        "translate_x_-2",
+        "translate_x_-1",
+        "translate_x_+1",
+        "translate_x_+2",
+        "translate_y_-2",
+        "translate_y_-1",
+        "translate_y_+1",
+        "translate_y_+2",
+        "rotate_-10",
+        "rotate_-5",
+        "rotate_+5",
+        "rotate_+10",
+        "dilation_1px",
+        "erosion_1px",
+        "gaussian_noise_sigma_0.05"
+      ],
+      "probe": "linear_logreg"
+    },
+    "D_transfer": {
+      "selection_rule": "choose two V3 representations with highest mean linear validation accuracy at 5000 among those whose mean linear validation accuracy at 500 exceeds zoning30 mean at 500, or with positive linear_logreg HOG complementarity at 500 or 5000 in at least two of three seeds",
+      "control_representations": [
+        "hog",
+        "raw_pixels",
+        "zoning_30d",
+        "hog_pca_30d",
+        "hog_pca_60d"
+      ],
+      "probes": [
+        "linear_logreg",
+        "rbf_svm",
+        "small_mlp"
+      ],
+      "train_sizes": [
+        500,
+        5000
+      ],
+      "seeds": [
+        11,
+        23,
+        47
+      ],
+      "datasets": [
+        "emnist_digits",
+        "emnist_letters",
+        "kmnist",
+        "fashion_mnist"
+      ]
+    }
+  },
+  "metrics": [
+    "accuracy",
+    "error_rate",
+    "confusion_matrix",
+    "feature_dim",
+    "feature_time_ms",
+    "train_time_ms",
+    "inference_time_ms",
+    "predictions",
+    "AULC_log_train_size",
+    "nonlinear_gain",
+    "pareto_frontier",
+    "complementarity_delta",
+    "transformation_accuracy_drop",
+    "transformation_prediction_agreement"
+  ],
+  "statistics": {
+    "paired_bootstrap_replicates": 2000,
+    "paired_bootstrap_ci": 0.95,
+    "paired_bootstrap_seed": 20261010,
+    "mcnemar": "exact two-sided binomial test",
+    "primary_pairs": [
+      [
+        "v3",
+        "zoning_30d"
+      ],
+      [
+        "v3",
+        "hog_pca_30d"
+      ],
+      [
+        "hog_plus_v3",
+        "hog"
+      ]
+    ],
+    "across_seed_summary": [
+      "mean",
+      "sample_sd"
+    ],
+    "three_seed_t_test": false
+  },
+  "leakage_rules": [
+    "same training indices for all representations and probes per dataset, size, seed",
+    "representation.fit receives training images and optional training labels only",
+    "PCA fits sampled training HOG features only",
+    "probe scaler fits training features only",
+    "fresh representation and probe per run",
+    "evaluation labels never enter fitting or representation transformation",
+    "clean-trained model reused for robustness and mechanism interventions"
+  ],
+  "cache_key_fields": [
+    "dataset_fingerprint",
+    "split_id",
+    "representation_id",
+    "representation_version",
+    "train_size",
+    "seed",
+    "fitted_state_id"
+  ],
+  "acceptance": {
+    "smoke": "one representation × two probes × two sizes",
+    "full_core_matrix_before_secondary_phases": true,
+    "protocol_hash_verified_before_experiments": true,
+    "v3_source_hashes_verified_before_experiments": true
+  }
+}
